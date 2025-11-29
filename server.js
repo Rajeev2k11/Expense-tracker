@@ -1,6 +1,10 @@
 const express = require('express')
 const mongoose = require('mongoose')
 const dotenv = require('dotenv')
+
+// Load environment variables FIRST before any other imports
+dotenv.config()
+
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const pinoHttp = require('pino-http');
@@ -12,8 +16,6 @@ const teamRoutes = require('./app/routes/team.routes');
 const categoryRoutes = require('./app/routes/category.routes');
 const expenseRoutes = require('./app/routes/expesne.routes');
 const reportsRoutes = require('./app/routes/reports.routes');
-// Load environment variables
-dotenv.config()
 
 const app = express()
 const port = 3000

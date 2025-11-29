@@ -23,6 +23,15 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ['admin', 'user', 'manager'],
         default: 'user'
+    },
+    invitation:{
+        type:String,
+        enum:['pending', 'accepted', 'rejected'],
+        required:false
+    },
+    invitedBy:{
+        type:String,
+        required:false
     }
 }, { timestamps: true });
 

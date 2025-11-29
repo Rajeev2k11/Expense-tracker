@@ -2,7 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { createUser, getAllUsers, getUserById, loginUser } = require('../controller/users.controller');
+const { createUser, getAllUsers, getUserById, loginUser ,inviteUser} = require('../controller/users.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
 /**
@@ -198,4 +198,42 @@ router.get('/', authMiddleware, getAllUsers);
  */
 router.get('/:id', authMiddleware, getUserById);
 
+router.post('/invite',authMiddleware, inviteUser);
+
+/**
+ * @swagger
+ * /api/v1/users/invite:
+ *   post:
+ *     summary: Invite a user by email
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true 
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john@example.com
+ *     responses:
+ *       200:
+ *         description: User invited successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Failed to invite user
+ */
 module.exports = router;
