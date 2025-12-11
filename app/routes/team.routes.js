@@ -15,6 +15,8 @@ const { createTeam, getTeamById, getAllTeams, updateTeam, deleteTeam } = require
  *   post:
  *     summary: Create a new team
  *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -52,6 +54,8 @@ router.post('/', createTeam);
  *   get:
  *     summary: Get all teams
  *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of all teams
@@ -83,6 +87,8 @@ router.get('/', getAllTeams);
  *   get:
  *     summary: Get team by ID
  *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -104,6 +110,8 @@ router.get('/:id', getTeamById);
  *   put:
  *     summary: Update team
  *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -140,6 +148,8 @@ router.put('/:id', updateTeam);
  *   delete:
  *     summary: Delete team
  *     tags: [Teams]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

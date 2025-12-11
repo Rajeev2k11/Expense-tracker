@@ -15,6 +15,8 @@ const { createCategory, getCategoryById, getAllCategories, updateCategory, delet
  *   post:
  *     summary: Create a new category
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -44,6 +46,8 @@ router.post('/', createCategory);
  *   get:
  *     summary: Get all categories
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of all categories
@@ -71,6 +75,8 @@ router.get('/', getAllCategories);
  *   get:
  *     summary: Get category by ID
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -92,6 +98,8 @@ router.get('/:id', getCategoryById);
  *   put:
  *     summary: Update category
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -124,6 +132,8 @@ router.put('/:id', updateCategory);
  *   delete:
  *     summary: Delete category
  *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

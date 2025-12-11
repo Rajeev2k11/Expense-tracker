@@ -15,6 +15,8 @@ const { createReport, getReportById, getAllReports, updateReport, deleteReport }
  *   post:
  *     summary: Create a new report
  *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -60,6 +62,8 @@ router.post('/', createReport);
  *   get:
  *     summary: Get all reports
  *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of all reports
@@ -91,6 +95,8 @@ router.get('/', getAllReports);
  *   get:
  *     summary: Get report by ID
  *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -112,6 +118,8 @@ router.get('/:id', getReportById);
  *   put:
  *     summary: Update report
  *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -150,6 +158,8 @@ router.put('/:id', updateReport);
  *   delete:
  *     summary: Delete report
  *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

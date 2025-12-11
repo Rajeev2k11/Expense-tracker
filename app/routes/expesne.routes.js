@@ -2,7 +2,61 @@ const express = require('express');
 const router = express.Router();
 const { createExpense, getExpenseById, getExpensesByCategory, getExpensesByUser, getExpensesByTeam, getAllExpenses, updateExpense, deleteExpense } = require('../controller/expense.controller');
 
+/**
+ * @swagger
+ * tags:
+ *   name: Expenses
+ *   description: Expense management
+ */
 
+/**
+ * @swagger
+ * /api/v1/expenses:
+ *   post:
+ *     summary: Create a new expense
+ *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - amount
+ *               - category
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: Office Supplies
+ *               amount:
+ *                 type: number
+ *                 example: 150.50
+ *               category:
+ *                 type: string
+ *                 description: Category ID
+ *                 example: 673abc123def456789012345
+ *               description:
+ *                 type: string
+ *                 example: Purchased notebooks and pens
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 example: 2024-01-15
+ *               user:
+ *                 type: string
+ *                 description: User ID
+ *               team:
+ *                 type: string
+ *                 description: Team ID
+ *     responses:
+ *       201:
+ *         description: Expense created successfully
+ *       500:
+ *         description: Failed to create expense
+ */
 router.post('/', createExpense);
 
 /**
@@ -11,6 +65,8 @@ router.post('/', createExpense);
  *   get:
  *     summary: Get all expenses
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of all expenses
@@ -44,6 +100,8 @@ router.get('/', getAllExpenses);
  *   get:
  *     summary: Get expense by ID
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -65,6 +123,8 @@ router.get('/:id', getExpenseById);
  *   get:
  *     summary: Get expenses by category
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: categoryId
@@ -86,6 +146,8 @@ router.get('/category/:categoryId', getExpensesByCategory);
  *   get:
  *     summary: Get expenses by user
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: userId
@@ -107,6 +169,8 @@ router.get('/user/:userId', getExpensesByUser);
  *   get:
  *     summary: Get expenses by team
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: teamId
@@ -128,6 +192,8 @@ router.get('/team/:teamId', getExpensesByTeam);
  *   put:
  *     summary: Update expense
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -167,6 +233,8 @@ router.put('/:id', updateExpense);
  *   delete:
  *     summary: Delete expense
  *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
