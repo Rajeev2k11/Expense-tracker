@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { createExpense, getExpenseById, getExpensesByCategory, getExpensesByUser, getExpensesByTeam, getAllExpenses, updateExpense, deleteExpense } = require('../controller/expense.controller');
-const { read } = require('../controller/read.controller');
 /**
  * @swagger
  * tags:
@@ -249,7 +248,5 @@ router.put('/:id', updateExpense);
  *         description: Failed to delete expense
  */
 router.delete('/:id', deleteExpense);
-
-router.get('/read', read);
 
 module.exports = router;
