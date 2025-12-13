@@ -1,6 +1,7 @@
 const express = require('express')
 const mongoose = require('mongoose')
 const dotenv = require('dotenv')
+const cors = require('cors')
 
 // Load environment variables FIRST before any other imports
 dotenv.config()
@@ -16,9 +17,19 @@ const teamRoutes = require('./app/routes/team.routes');
 const categoryRoutes = require('./app/routes/category.routes');
 const expenseRoutes = require('./app/routes/expesne.routes');
 const reportsRoutes = require('./app/routes/reports.routes');
+const overviewRoutes = require('./app/routes/read.routes');
 
 const app = express()
 const port = 3000
+
+// CORS configuration
+const corsOptions = {
+  origin: process.env.FRONTEND_APP_URL || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+app.use(cors(corsOptions))
 
 // Middleware to parse JSON (must be before routes)
 app.use(express.json())
@@ -57,6 +68,7 @@ app.use('/api/v1/teams', authMiddleware, teamRoutes)
 app.use('/api/v1/categories', authMiddleware, categoryRoutes)
 app.use('/api/v1/expenses', authMiddleware, expenseRoutes)
 app.use('/api/v1/reports', authMiddleware, reportsRoutes)
+app.use('/api/v1/overview', overviewRoutes)
 
 
 app.listen(port, () => {
