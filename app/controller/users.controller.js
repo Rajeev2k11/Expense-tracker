@@ -52,16 +52,45 @@ const loginUser = async (req, res) => {
         if (!isPasswordCorrect) {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
-        if (!user.mfa_enabled) {
-            return res.status(401).json({ message: 'MFA is not enabled' });
+        
+        // Admin can login directly without MFA
+        if (user.role === 'admin') {
+            // Update status to active if pending
+            if (user.status === 'pending') {
+                user.status = 'active';
+                await user.save();
+            }
+            
+            // Generate JWT token
+            const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+            
+            return res.status(200).json({ 
+                message: 'Login successful',
+                token: token,
+                user: {
+                    id: user._id,
+                    email: user.email,
+                    name: user.name,
+                    username: user.username,
+                    role: user.role
+                }
+            });
         }
-        // Generate JWT token
-        // const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        
+        // Normal users need MFA verification
+        if (!user.mfa_enabled) {
+            return res.status(401).json({ message: 'MFA is not enabled. Please complete MFA setup.' });
+        }
+        
+        // Generate challengeId for MFA verification
+        const challengeId = crypto.randomBytes(24).toString("hex");
+        user.challengeId = challengeId;
+        await user.save();
         
         res.status(200).json({ 
-            message: 'Password is correct',
+            message: 'Password is correct. Please verify MFA.',
             mfa_method: user.mfa_method,
-           
+            challengeId: challengeId
         });
     } catch (error) {
         res.status(500).json({ message: 'Failed to login', error: error.message });
@@ -70,25 +99,14 @@ const loginUser = async (req, res) => {
 //invite user by sending email
 const inviteUser = async (req, res) => {
     try {
-       console.log('=== Invite User Started ===');
-       console.log('Request body:', req.body);
-       console.log('User ID from auth:', req.userId);
-       
        const {email, role, name, username} = req.body;
        
        if (!email) {
            return res.status(400).json({ message: 'Email is required' });
        }
        
-       // Check if user already exists
-       const existingUser = await User.findOne({ email });
-       if (existingUser) {
-           return res.status(400).json({ message: 'User with this email already exists' });
-       }
-       
        // Get the inviting user from auth middleware
        const invitingUser = await User.findById(req.userId);
-       console.log('Inviting user:', invitingUser ? invitingUser.email : 'NOT FOUND');
        
        if (!invitingUser) {
            return res.status(401).json({ message: 'Unauthorized' });
@@ -99,31 +117,53 @@ const inviteUser = async (req, res) => {
        const tokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
        const inviteUrl = `${process.env.FRONTEND_APP_URL}/set-password?token=${token}`;
        
-       // Create user with pending status
-       const newUser = await User.create({
-           name: name || email.split('@')[0], // Use email prefix as default name
-           username: username || email.split('@')[0], // Use email prefix as default username
-           email: email,
-           password: crypto.randomBytes(32).toString("hex"), // Temporary random password
-           role: role || 'user',
-           invitation: 'pending',
-           invitedBy: invitingUser._id.toString(),
-           inviteToken: token,
-           inviteTokenExpiry: tokenExpiry,
-           status: 'pending'
-       });
+       // Check if user already exists by email
+       let existingUser = await User.findOne({ email });
+       let isResend = false;
        
-       console.log('Preparing to send email...');
-       console.log('From: team@aictum.com');
-       console.log('To:', email);
-       console.log('Resend API Key present:', !!process.env.RESEND_API_KEY);
-       console.log('Resend API Key prefix:', process.env.RESEND_API_KEY?.substring(0, 5));
-
-       // Send email using Resend
+       if (existingUser) {
+           // If user already accepted invitation, don't allow resend
+           if (existingUser.invitation === 'accepted') {
+               return res.status(400).json({ message: 'User has already accepted the invitation' });
+           }
+           
+           // Update existing user with new invite token
+           existingUser.inviteToken = token;
+           existingUser.inviteTokenExpiry = tokenExpiry;
+           existingUser.invitedBy = invitingUser._id.toString();
+           if (role) existingUser.role = role;
+           if (name) existingUser.name = name;
+           await existingUser.save();
+           isResend = true;
+       } else {
+           // Check if username already exists
+           const usernameToUse = username || email.split('@')[0];
+           const existingUsername = await User.findOne({ username: usernameToUse });
+           if (existingUsername) {
+               return res.status(400).json({ 
+                   message: 'Username is already taken. Please provide a different username.' 
+               });
+           }
+           
+           // Create new user with pending status
+           await User.create({
+               name: name || email.split('@')[0],
+               username: usernameToUse,
+               email: email,
+               password: crypto.randomBytes(32).toString("hex"),
+               role: role || 'user',
+               invitation: 'pending',
+               invitedBy: invitingUser._id.toString(),
+               inviteToken: token,
+               inviteTokenExpiry: tokenExpiry,
+               status: 'pending'
+           });
+       }
+     
        const result = await resend.emails.send({
-        from: 'team@aictum.com', // Your verified domain email
+        from: 'team@aictum.com',
         to: email,
-        subject: "You're invited to Expense Tracker!",
+        subject: `You're invited to Expense Tracker as ${role || 'user'}!`,
         html: `
           <div>
             <p>Hi there,</p>
@@ -137,23 +177,14 @@ const inviteUser = async (req, res) => {
           </div>
         `,
       });
-      
-      console.log('✅ Email sent successfully!');
-      console.log('Resend Response:', JSON.stringify(result, null, 2));
   
         res.status(200).json({ 
-            message: 'User invited successfully', 
-          
+            message: isResend ? 'Invitation resent successfully' : 'User invited successfully'
         });
     } catch (error) {
-        console.error('❌ Failed to send invite email:');
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        console.error('Full error:', error);
         res.status(500).json({ 
             message: 'Failed to invite user', 
-            error: error.message,
-            errorDetails: error.toString()
+            error: error.message
         });
     }
 }
@@ -426,6 +457,86 @@ const verifyMfa = async (req, res) => {
     }
 }
 
+// Verify MFA for user login
+const verifyLoginMfa = async (req, res) => {
+    try {
+        const { challengeId, totpCode } = req.body;
+        
+        if (!challengeId) {
+            return res.status(400).json({ message: 'Challenge ID is required' });
+        }
+        
+        // Find user by challengeId
+        const user = await User.findOne({ challengeId: challengeId });
+        if (!user) {
+            return res.status(401).json({ message: 'Invalid or expired challenge' });
+        }
+        
+        if (!user.mfa_enabled) {
+            return res.status(400).json({ message: 'MFA is not enabled for this user' });
+        }
+        
+        if (!user.mfa_method) {
+            return res.status(400).json({ message: 'MFA method not configured' });
+        }
+        
+        let verified = false;
+        
+        // Handle TOTP verification
+        if (user.mfa_method === 'TOTP') {
+            if (!totpCode) {
+                return res.status(400).json({ message: 'TOTP code is required' });
+            }
+            
+            if (!user.mfa_secret) {
+                return res.status(400).json({ message: 'MFA secret not found' });
+            }
+            
+            // Verify the TOTP code
+            verified = speakeasy.totp.verify({
+                secret: user.mfa_secret,
+                encoding: 'base32',
+                token: totpCode,
+                window: 2
+            });
+        } else {
+            return res.status(400).json({ 
+                message: 'Please use passkey authentication endpoints for PASSKEY MFA' 
+            });
+        }
+        
+        if (verified) {
+            // Clear challengeId after successful verification
+            user.challengeId = undefined;
+            await user.save();
+            
+            // Generate JWT token
+            const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+            
+            res.status(200).json({
+                message: 'Login successful',
+                token: token,
+                user: {
+                    id: user._id,
+                    email: user.email,
+                    name: user.name,
+                    username: user.username,
+                    role: user.role,
+                    mfa_method: user.mfa_method
+                }
+            });
+        } else {
+            res.status(401).json({ message: 'Invalid TOTP code. Please try again.' });
+        }
+    } catch (error) {
+        console.error('Login MFA verification error:', error);
+        res.status(500).json({
+            message: 'Failed to verify MFA',
+            error: error.message
+        });
+    }
+}
+
 // Generate authentication options for login with passkey
 const generatePasskeyAuthOptions = async (req, res) => {
     try {
@@ -471,6 +582,66 @@ const generatePasskeyAuthOptions = async (req, res) => {
         console.error('Generate auth options error:', error);
         res.status(500).json({
             message: 'Failed to generate authentication options',
+            error: error.message
+        });
+    }
+}
+
+// Sign up admin - Register the first admin who can invite users
+const signUpAdmin = async (req, res) => {
+    try {
+        const { name, username, email, password } = req.body;
+        
+        // Validate required fields
+        if (!name || !username || !email || !password) {
+            return res.status(400).json({ message: 'Name, username, email, and password are required' });
+        }
+        
+        // Check if email already exists
+        const existingEmail = await User.findOne({ email });
+        if (existingEmail) {
+            return res.status(400).json({ message: 'User with this email already exists' });
+        }
+        
+        // Check if username already exists
+        const existingUsername = await User.findOne({ username });
+        if (existingUsername) {
+            return res.status(400).json({ message: 'Username is already taken' });
+        }
+        
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Create a challenge id for MFA setup
+        const challengeId = crypto.randomBytes(24).toString("hex");
+        
+        // Create the admin user
+        const newAdmin = await User.create({
+            name,
+            username,
+            email,
+            password: hashedPassword,
+            role: 'admin',
+            invitation: 'accepted',
+            status: 'pending',
+            challengeId: challengeId
+        });
+        
+        res.status(201).json({
+            message: 'Admin registered successfully. Please setup MFA.',
+            challengeId: challengeId,
+            user: {
+                id: newAdmin._id,
+                name: newAdmin.name,
+                username: newAdmin.username,
+                email: newAdmin.email,
+                role: newAdmin.role
+            }
+        });
+    } catch (error) {
+        console.error('Admin signup error:', error);
+        res.status(500).json({
+            message: 'Failed to register admin',
             error: error.message
         });
     }
@@ -560,6 +731,8 @@ module.exports = {
     setupPassword, 
     selectMfaMethod, 
     verifyMfa,
+    verifyLoginMfa,
     generatePasskeyAuthOptions,
-    verifyPasskeyAuth
+    verifyPasskeyAuth,
+    signUpAdmin
 }

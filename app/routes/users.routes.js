@@ -10,8 +10,10 @@ const {
     setupPassword, 
     selectMfaMethod, 
     verifyMfa,
+    verifyLoginMfa,
     generatePasskeyAuthOptions,
-    verifyPasskeyAuth
+    verifyPasskeyAuth,
+    signUpAdmin
 } = require('../controller/users.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
@@ -356,6 +358,71 @@ router.post('/verify-mfa', verifyMfa);
 
 /**
  * @swagger
+ * /api/v1/users/verify-login-mfa:
+ *   post:
+ *     summary: Verify MFA for user login
+ *     description: Verifies the TOTP code for user login after successful password verification. Used by normal users who have MFA enabled.
+ *     tags: [Users]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - challengeId
+ *               - totpCode
+ *             properties:
+ *               challengeId:
+ *                 type: string
+ *                 description: Challenge ID received from login endpoint
+ *                 example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
+ *               totpCode:
+ *                 type: string
+ *                 description: 6-digit code from authenticator app
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Login successful
+ *                 token:
+ *                   type: string
+ *                   description: JWT token for authentication
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       example: user
+ *                     mfa_method:
+ *                       type: string
+ *       400:
+ *         description: Missing required fields
+ *       401:
+ *         description: Invalid challenge or TOTP code
+ *       500:
+ *         description: Failed to verify MFA
+ */
+router.post('/verify-login-mfa', verifyLoginMfa);
+
+/**
+ * @swagger
  * /api/v1/users/passkey-auth-options:
  *   post:
  *     summary: Generate authentication options for passkey login
@@ -436,5 +503,78 @@ router.post('/passkey-auth-options', generatePasskeyAuthOptions);
  *         description: Server error
  */
 router.post('/passkey-auth-verify', verifyPasskeyAuth);
+
+/**
+ * @swagger
+ * /api/v1/users/signup-admin:
+ *   post:
+ *     summary: Register a new admin user
+ *     description: Creates a new admin account. After registration, admin must setup MFA using the returned challengeId.
+ *     tags: [Users]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - username
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Full name of the admin
+ *                 example: John Doe
+ *               username:
+ *                 type: string
+ *                 description: Unique username
+ *                 example: johndoe
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Admin email address
+ *                 example: admin@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 description: Password (min 8 characters recommended)
+ *                 example: SecurePassword123!
+ *     responses:
+ *       201:
+ *         description: Admin registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Admin registered successfully. Please setup MFA.
+ *                 challengeId:
+ *                   type: string
+ *                   description: Challenge ID for MFA setup
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *       400:
+ *         description: Missing required fields or user already exists
+ *       500:
+ *         description: Failed to register admin
+ */
+router.post('/signup-admin', signUpAdmin);
 
 module.exports = router;
