@@ -2,10 +2,7 @@ const mongoose = require('mongoose');
 
 const readSchema = new mongoose.Schema({
     
-    totalExpense: {
-        type: Number,
-        required: true
-    },
+ 
     totalSpent: {
         type: Number,
         required: true
