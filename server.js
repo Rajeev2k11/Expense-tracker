@@ -18,6 +18,7 @@ const categoryRoutes = require('./app/routes/category.routes');
 const expenseRoutes = require('./app/routes/expesne.routes');
 const reportsRoutes = require('./app/routes/reports.routes');
 const overviewRoutes = require('./app/routes/read.routes');
+const adminRoutes = require('./app/routes/admin.routes');
 
 const app = express()
 const port = 3000
@@ -68,6 +69,7 @@ app.use('/api/v1/teams', authMiddleware, teamRoutes)
 app.use('/api/v1/categories', authMiddleware, categoryRoutes)
 app.use('/api/v1/expenses', authMiddleware, expenseRoutes)
 app.use('/api/v1/reports', authMiddleware, reportsRoutes)
+app.use('/api/v1/admin', authMiddleware, adminRoutes)
 app.use('/api/v1/overview', overviewRoutes)
 
 

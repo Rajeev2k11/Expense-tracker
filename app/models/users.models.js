@@ -19,11 +19,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    role:{
-        type: String,
-        enum: ['admin', 'user', 'manager'],
-        default: 'user'
-    },
+
     invitation:{
         type:String,
         enum:['pending', 'accepted', 'rejected'],
@@ -78,6 +74,11 @@ const userSchema = new mongoose.Schema({
     status:{
         type:String,
         enum:['active', 'inactive', 'pending'],
+        default:null
+    },
+    user_type:{
+        type:String,
+        enum:['ADMIN', 'USER'],
         default:null
     },
     

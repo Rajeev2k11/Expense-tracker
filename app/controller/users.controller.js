@@ -298,7 +298,7 @@ const selectMfaMethod = async (req, res) => {
             const options = await generateRegistrationOptions({
                 rpName: rpName,
                 rpID: rpID,
-                userID: user._id.toString(),
+                userID: Buffer.from(user._id.toString()),
                 userName: user.email,
                 userDisplayName: user.name,
                 attestationType: 'none',

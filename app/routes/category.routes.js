@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createCategory, getCategoryById, getAllCategories, updateCategory, deleteCategory } = require('../controller/category.controller');
+const {  getCategoryById, getAllCategories, updateCategory, deleteCategory } = require('../controller/category.controller');
 
 /**
  * @swagger
@@ -9,40 +9,12 @@ const { createCategory, getCategoryById, getAllCategories, updateCategory, delet
  *   description: Category management
  */
 
-/**
- * @swagger
- * /api/v1/categories:
- *   post:
- *     summary: Create a new category
- *     tags: [Categories]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *             properties:
- *               name:
- *                 type: string
- *                 example: Food & Dining
- *               description:
- *                 type: string
- *                 example: Expenses related to food and dining
- *     responses:
- *       201:
- *         description: Category created successfully
- *       500:
- *         description: Failed to create category
- */
-router.post('/', createCategory);
+
+ 
 
 /**
  * @swagger
- * /api/v1/categories:
+ * /api/v1/categories/list:
  *   get:
  *     summary: Get all categories
  *     tags: [Categories]
@@ -67,7 +39,7 @@ router.post('/', createCategory);
  *       500:
  *         description: Failed to get categories
  */
-router.get('/', getAllCategories);
+router.get('/list', getAllCategories);
 
 /**
  * @swagger
