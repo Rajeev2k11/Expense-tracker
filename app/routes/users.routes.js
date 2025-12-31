@@ -9,7 +9,7 @@ const {
     inviteUser, 
     setupPassword, 
     selectMfaMethod, 
-    verifyMfa,
+    verifyMfaSetup,
     verifyLoginMfa,
     generatePasskeyAuthOptions,
     verifyPasskeyAuth,
@@ -294,9 +294,24 @@ router.post('/select-mfa-method', selectMfaMethod);
 
 /**
  * @swagger
- * /api/v1/users/verify-mfa:
+ * /api/v1/users/verify-mfa-setup:
  *   post:
- *     summary: Verify MFA (supports both TOTP and PASSKEY)
+ *     summary: Verify MFA setup (supports both TOTP and PASSKEY)
+ *     description: |
+ *       Verifies the MFA setup by checking the TOTP code or passkey credential. 
+ *       This endpoint is used during the MFA setup process after selecting the MFA method.
+ *       
+ *       **For TOTP Method**: 
+ *       - Required fields: `challengeId` + `code` (6-digit number)
+ *       - Send the 6-digit code from your authenticator app (Google Authenticator, Authy, etc.)
+ *       
+ *       **For PASSKEY Method**: 
+ *       - Required fields: `challengeId` + `credential` (WebAuthn credential object)
+ *       - Send the complete credential object from navigator.credentials.create()
+ *       - The credential must include: id, rawId, response (clientDataJSON, attestationObject), type
+ *       
+ *       On successful verification, the user's MFA will be enabled, the account will be activated, 
+ *       and a JWT token will be returned for authentication.
  *     tags: [Users]
  *     security: []
  *     requestBody:
@@ -304,24 +319,109 @@ router.post('/select-mfa-method', selectMfaMethod);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - challengeId
- *             properties:
- *               challengeId:
- *                 type: string
- *                 description: Challenge ID from MFA setup
- *                 example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
- *               totpCode:
- *                 type: string
- *                 description: 6-digit code from authenticator app (required for TOTP)
- *                 example: "123456"
- *               credential:
- *                 type: object
- *                 description: Credential from navigator.credentials.create() (required for PASSKEY)
+ *             oneOf:
+ *               - type: object
+ *                 title: TOTP Verification
+ *                 required:
+ *                   - challengeId
+ *                   - code
+ *                 properties:
+ *                   challengeId:
+ *                     type: string
+ *                     description: Challenge ID received from select-mfa-method endpoint
+ *                     example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
+ *                   code:
+ *                     type: string
+ *                     description: 6-digit TOTP code from authenticator app (Google Authenticator, Authy, etc.)
+ *                     example: "123456"
+ *                     pattern: "^[0-9]{6}$"
+ *               - type: object
+ *                 title: PASSKEY Verification
+ *                 required:
+ *                   - challengeId
+ *                   - credential
+ *                 properties:
+ *                   challengeId:
+ *                     type: string
+ *                     description: Challenge ID received from select-mfa-method endpoint
+ *                     example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
+ *                   credential:
+ *                     type: object
+ *                     description: WebAuthn credential object from navigator.credentials.create()
+ *                     required:
+ *                       - id
+ *                       - rawId
+ *                       - response
+ *                       - type
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: Base64url encoded credential ID
+ *                         example: "AQEBAgMFCA0VIjdZEGl5Yls"
+ *                       rawId:
+ *                         type: string
+ *                         description: Base64url encoded raw credential ID
+ *                         example: "AQEBAgMFCA0VIjdZEGl5Yls"
+ *                       response:
+ *                         type: object
+ *                         required:
+ *                           - clientDataJSON
+ *                           - attestationObject
+ *                         properties:
+ *                           clientDataJSON:
+ *                             type: string
+ *                             description: Base64url encoded client data JSON
+ *                             example: "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiTXpZMU5qVT..."
+ *                           attestationObject:
+ *                             type: string
+ *                             description: Base64url encoded attestation object
+ *                             example: "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5Yx..."
+ *                           transports:
+ *                             type: array
+ *                             description: Transport methods supported by the authenticator
+ *                             items:
+ *                               type: string
+ *                               enum: [usb, nfc, ble, internal, hybrid]
+ *                             example: ["internal", "hybrid"]
+ *                       type:
+ *                         type: string
+ *                         description: Credential type
+ *                         enum: [public-key]
+ *                         example: "public-key"
+ *                       clientExtensionResults:
+ *                         type: object
+ *                         description: Client extension results (usually empty object)
+ *                         example: {}
+ *                       authenticatorAttachment:
+ *                         type: string
+ *                         description: Type of authenticator used
+ *                         enum: [platform, cross-platform]
+ *                         example: "platform"
+ *           examples:
+ *             totpExample:
+ *               summary: TOTP Code Verification
+ *               description: Use this format when verifying TOTP (6-digit code from authenticator app)
+ *               value:
+ *                 challengeId: "51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a"
+ *                 code: "123456"
+ *             passkeyExample:
+ *               summary: Passkey Credential Verification
+ *               description: Use this format when verifying PASSKEY (WebAuthn credential from browser)
+ *               value:
+ *                 challengeId: "51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a"
+ *                 credential:
+ *                   id: "AQEBAgMFCA0VIjdZEGl5Yls"
+ *                   rawId: "AQEBAgMFCA0VIjdZEGl5Yls"
+ *                   response:
+ *                     clientDataJSON: "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiTXpZMU5qVTJOelE1TnpReU1EQXhOekl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREl4TnpJd01UY3lNREkxTmpVMk56UTVOelF5TURBeE56SXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESXhOekl3TVRjeU1ESTFOalUyTnpRNU56UXlNREF4TnpJeE56SXdNVGN5TURJeE56SXdNVGN5TURJeE56SXdNVGN5TURJeE56SXdNVGN5TURJeE56SXdNVGN5TURJeE56SXdNVGN5TURJeE56SXdNVGN5TURJeE56SXdNVGN5TURJMU5qVTJOelE1TnpReU1EQXhOekl4TnpJdwogICAiLCJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjMwMDAiLCJjcm9zc09yaWdpbiI6ZmFsc2V9"
+ *                     attestationObject: "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVikSZYN5YxvLEqjWNHCdN0x4I0HjJ2FQJqF0FdLEqjW"
+ *                     transports: ["internal", "hybrid"]
+ *                   type: "public-key"
+ *                   clientExtensionResults: {}
+ *                   authenticatorAttachment: "platform"
  *     responses:
  *       200:
- *         description: MFA verified successfully
+ *         description: MFA verified and enabled successfully
  *         content:
  *           application/json:
  *             schema:
@@ -329,32 +429,107 @@ router.post('/select-mfa-method', selectMfaMethod);
  *               properties:
  *                 message:
  *                   type: string
+ *                   description: Success message indicating which MFA method was verified
+ *                   example: TOTP MFA verified and enabled successfully
  *                 token:
  *                   type: string
+ *                   description: JWT token for authentication (valid for 1 hour)
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2MzdhMTIzNDU2Nzg5MGFiY2RlZjAxMjMiLCJpYXQiOjE2ODc1Mjc2MDB9.abc123def456
  *                 user:
  *                   type: object
+ *                   description: User object with updated MFA information
  *                   properties:
  *                     id:
  *                       type: string
+ *                       description: User's unique identifier
+ *                       example: 637a12345678900abcdef0123
  *                     email:
  *                       type: string
+ *                       format: email
+ *                       description: User's email address
+ *                       example: user@example.com
  *                     name:
  *                       type: string
+ *                       description: User's full name
+ *                       example: John Doe
  *                     username:
  *                       type: string
+ *                       description: User's username
+ *                       example: johndoe
+ *                     role:
+ *                       type: string
+ *                       description: User's role in the system
+ *                       enum: [admin, user, manager]
+ *                       example: user
  *                     mfa_enabled:
  *                       type: boolean
+ *                       description: Whether MFA is enabled for this user
+ *                       example: true
  *                     mfa_method:
  *                       type: string
+ *                       description: The MFA method that was setup
  *                       enum: [TOTP, PASSKEY]
+ *                       example: TOTP
  *       400:
- *         description: Missing required fields
+ *         description: Bad Request - Missing required fields or invalid data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *               examples:
+ *                 missingChallengeId:
+ *                   value:
+ *                     message: Challenge ID is required
+ *                 missingCode:
+ *                   value:
+ *                     message: TOTP code is required
+ *                 missingCredential:
+ *                   value:
+ *                     message: Passkey credential is required
+ *                 methodNotSelected:
+ *                   value:
+ *                     message: MFA method not selected. Please select MFA method first.
+ *                 incompleteCredential:
+ *                   value:
+ *                     message: Incomplete credential data received
  *       401:
- *         description: Invalid verification code/credential or challenge
+ *         description: Unauthorized - Invalid verification code/credential or challenge
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *               examples:
+ *                 invalidChallenge:
+ *                   value:
+ *                     message: Invalid or expired challenge
+ *                 invalidCode:
+ *                   value:
+ *                     message: Invalid TOTP code. Please try again.
+ *                 passkeyFailed:
+ *                   value:
+ *                     message: Passkey verification failed
  *       500:
- *         description: Failed to verify MFA
+ *         description: Internal Server Error - Failed to verify MFA
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Failed to verify MFA
+ *                 error:
+ *                   type: string
+ *                   description: Detailed error message
+ *                   example: Internal server error
  */
-router.post('/verify-mfa', verifyMfa);
+router.post('/verify-mfa-setup', verifyMfaSetup);
 
 /**
  * @swagger

@@ -16,8 +16,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // WebAuthn configuration
 const rpName = 'Expense Tracker';
-const rpID = process.env.RP_ID || 'localhost'; // Your domain (e.g., 'example.com')
-const origin = process.env.FRONTEND_APP_URL || 'http://localhost:3001';
+const rpID = process.env.RP_ID?.trim() || 'localhost'; // Your domain (e.g., 'example.com')
+const origin = process.env.FRONTEND_APP_URL?.trim() || 'http://localhost:5173';
 
 const getAllUsers = async (req, res) => {
     try {
@@ -328,133 +328,285 @@ const selectMfaMethod = async (req, res) => {
     }
 }
 
-//verify-mfa - Unified verification for both TOTP and PASSKEY
-const verifyMfa = async (req, res) => {
+// Verify MFA setup - handles both TOTP and PASSKEY verification
+const verifyMfaSetup = async (req, res) => {
     try {
-        const { challengeId, totpCode, credential } = req.body;
+        const { challengeId, code, credential } = req.body;
         
+        // Validate required fields
         if (!challengeId) {
             return res.status(400).json({ message: 'Challenge ID is required' });
         }
         
         // Find user by challengeId
-        const user = await User.findOne({ challengeId: challengeId });
+        const user = await User.findOne({ challengeId });
         if (!user) {
             return res.status(401).json({ message: 'Invalid or expired challenge' });
         }
         
         if (!user.mfa_method) {
-            return res.status(400).json({ message: 'MFA method not selected' });
+            return res.status(400).json({ message: 'MFA method not selected. Please select MFA method first.' });
         }
         
         let verified = false;
         let verificationMessage = '';
         
-        // Handle TOTP verification
+        // ========== TOTP Verification ==========
         if (user.mfa_method === 'TOTP') {
-            if (!totpCode) {
+            if (!code) {
                 return res.status(400).json({ message: 'TOTP code is required' });
             }
             
             if (!user.mfa_secret) {
-                return res.status(400).json({ message: 'MFA not setup for this user' });
+                return res.status(400).json({ message: 'MFA secret not found' });
             }
             
             // Verify the TOTP code
             verified = speakeasy.totp.verify({
                 secret: user.mfa_secret,
                 encoding: 'base32',
-                token: totpCode,
-                window: 2 // Allow 2 time steps before and after (60 seconds each)
+                token: code,
+                window: 2 // Allow 2 time steps before/after for clock drift
             });
             
-            verificationMessage = verified ? 
-                'TOTP MFA verified and enabled successfully' : 
-                'Invalid TOTP code. Please try again.';
+            verificationMessage = verified 
+                ? 'TOTP MFA verified and enabled successfully' 
+                : 'Invalid TOTP code. Please try again.';
         }
         
-        // Handle PASSKEY verification
+        // ========== PASSKEY Verification ==========
         else if (user.mfa_method === 'PASSKEY') {
             if (!credential) {
-                return res.status(400).json({ message: 'Credential is required' });
+                return res.status(400).json({ message: 'Passkey credential is required' });
             }
             
             if (!user.webauthn_challenge) {
-                return res.status(400).json({ message: 'No WebAuthn challenge found' });
+                return res.status(400).json({ message: 'No WebAuthn challenge found. Please restart the setup process.' });
+            }
+            
+            // Validate WebAuthn configuration
+            if (!origin || !rpID) {
+                console.error('WebAuthn configuration error:', { origin, rpID });
+                return res.status(500).json({ message: 'WebAuthn is not properly configured on the server' });
             }
             
             try {
-                // Verify the registration response
+                // Log the incoming credential for debugging
+                console.log('Received credential:', JSON.stringify(credential, null, 2));
+                console.log('Expected challenge:', user.webauthn_challenge);
+                console.log('Expected origin:', origin);
+                console.log('Expected RP ID:', rpID);
+                
+                // Verify the registration response using @simplewebauthn/server
                 const verification = await verifyRegistrationResponse({
                     response: credential,
                     expectedChallenge: user.webauthn_challenge,
                     expectedOrigin: origin,
-                    expectedRPID: rpID
+                    expectedRPID: rpID,
+                    requireUserVerification: false
                 });
                 
-                if (verification.verified && verification.registrationInfo) {
-                    const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+                console.log('Verification result:', {
+                    verified: verification.verified,
+                    hasRegistrationInfo: !!verification.registrationInfo,
+                    registrationInfoKeys: verification.registrationInfo ? Object.keys(verification.registrationInfo) : null,
+                    fullRegistrationInfo: verification.registrationInfo ? JSON.stringify(verification.registrationInfo, (key, value) => {
+                        if (value instanceof Uint8Array || value instanceof Buffer) {
+                            return `Buffer(${value.length} bytes)`;
+                        }
+                        return value;
+                    }, 2) : null
+                });
+                
+                if (!verification.verified) {
+                    verified = false;
+                    verificationMessage = 'Passkey verification failed - verification not verified';
+                    console.error('Verification failed - verified:', verification.verified);
+                    return res.status(400).json({ message: verificationMessage });
+                }
+                
+                if (!verification.registrationInfo) {
+                    verified = false;
+                    verificationMessage = 'Passkey verification failed - no registration info';
+                    console.error('Verification failed - no registrationInfo');
+                    return res.status(400).json({ message: verificationMessage });
+                }
+                
+                // Log the full structure before destructuring
+                console.log('RegistrationInfo type:', typeof verification.registrationInfo);
+                console.log('RegistrationInfo constructor:', verification.registrationInfo?.constructor?.name);
+                console.log('RegistrationInfo keys:', Object.keys(verification.registrationInfo));
+                
+                // Extract credential data from registrationInfo
+                // In @simplewebauthn/server v13+, credential data is nested in the 'credential' property
+                const registrationInfo = verification.registrationInfo;
+                const registrationCredential = registrationInfo.credential;
+                
+                console.log('Registration credential object:', {
+                    hasCredential: !!registrationCredential,
+                    credentialType: registrationCredential ? typeof registrationCredential : 'undefined',
+                    credentialKeys: registrationCredential ? Object.keys(registrationCredential) : null
+                });
+                
+                // Extract credentialID and credentialPublicKey from the credential object
+                // credential.id might be a Buffer, Uint8Array, or base64url string
+                let credentialID = registrationCredential?.id;
+                let credentialPublicKey = registrationCredential?.publicKey;
+                const counter = registrationInfo.counter || 0;
+                
+                // Handle case where credentialID might be a base64url string (from frontend)
+                if (typeof credentialID === 'string') {
+                    // Convert base64url to Buffer
+                    credentialID = Buffer.from(credentialID, 'base64url');
+                }
+                
+                // Log what we found
+                console.log('Credential extraction:', {
+                    hasCredentialID: !!credentialID,
+                    credentialIDType: credentialID ? credentialID.constructor?.name : 'undefined',
+                    credentialIDLength: credentialID ? (credentialID.length || credentialID.byteLength || 0) : 0,
+                    hasCredentialPublicKey: !!credentialPublicKey,
+                    credentialPublicKeyType: credentialPublicKey ? credentialPublicKey.constructor?.name : 'undefined',
+                    credentialPublicKeyLength: credentialPublicKey ? (credentialPublicKey.length || credentialPublicKey.byteLength || 0) : 0,
+                    counter
+                });
+                
+                // Validate credential data
+                if (!registrationCredential || !credentialID || !credentialPublicKey) {
+                    console.error('Missing credential data from verification');
+                    console.error('Registration credential object:', registrationCredential);
+                    console.error('CredentialID:', credentialID);
+                    console.error('CredentialPublicKey:', credentialPublicKey);
+                    console.error('Full registrationInfo structure:', {
+                        hasCredential: !!registrationCredential,
+                        credentialKeys: registrationCredential ? Object.keys(registrationCredential) : null,
+                        registrationInfoKeys: Object.keys(registrationInfo)
+                    });
+                    return res.status(400).json({ 
+                        message: 'Incomplete credential data received',
+                        debug: {
+                            hasCredential: !!registrationCredential,
+                            hasCredentialID: !!credentialID,
+                            hasCredentialPublicKey: !!credentialPublicKey,
+                            credentialKeys: registrationCredential ? Object.keys(registrationCredential) : null,
+                            availableKeys: Object.keys(registrationInfo)
+                        }
+                    });
+                }
+                
+                // Convert to Buffer if needed (handle Buffer, Uint8Array, and other ArrayLike objects)
+                const credentialIDBuffer = Buffer.isBuffer(credentialID)
+                    ? credentialID
+                    : credentialID instanceof Uint8Array
+                        ? Buffer.from(credentialID)
+                        : Buffer.from(credentialID);
+                
+                const credentialPublicKeyBuffer = Buffer.isBuffer(credentialPublicKey)
+                    ? credentialPublicKey
+                    : credentialPublicKey instanceof Uint8Array
+                        ? Buffer.from(credentialPublicKey)
+                        : Buffer.from(credentialPublicKey);
+                
+                // Save the passkey credential
+                const newCredential = {
+                    credentialID: credentialIDBuffer.toString('base64'),
+                    credentialPublicKey: credentialPublicKeyBuffer.toString('base64'),
+                    counter: counter || 0,
+                    createdAt: new Date()
+                };
                     
-                    // Save the credential
-                    const newCredential = {
-                        credentialID: Buffer.from(credentialID).toString('base64'),
-                        credentialPublicKey: Buffer.from(credentialPublicKey).toString('base64'),
-                        counter: counter,
-                        createdAt: new Date()
-                    };
+                    // Initialize credentials array if needed
+                    if (!Array.isArray(user.webauthn_credentials)) {
+                        user.webauthn_credentials = [];
+                    }
                     
                     user.webauthn_credentials.push(newCredential);
-                    user.webauthn_challenge = undefined; // Clear challenge
+                    user.webauthn_challenge = undefined; // Clear the challenge
+                    
+                    console.log('Passkey credential saved successfully');
+                    
                     verified = true;
                     verificationMessage = 'Passkey verified and enabled successfully';
-                } else {
-                    verificationMessage = 'Passkey verification failed';
-                }
             } catch (error) {
-                console.error('Passkey verification error:', error);
-                verificationMessage = 'Passkey verification failed: ' + error.message;
+                console.error('Passkey verification error:', error.message);
+                
+                // Provide detailed error messages
+                let message = 'Passkey verification failed';
+                
+                if (error.message.includes('challenge')) {
+                    message = 'Challenge verification failed. Please try again.';
+                } else if (error.message.includes('origin')) {
+                    message = 'Origin mismatch. Please ensure you are on the correct domain.';
+                } else if (error.message.includes('rpId') || error.message.includes('RP ID')) {
+                    message = 'RP ID mismatch. Configuration error.';
+                } else if (error.message) {
+                    message = `Passkey verification failed: ${error.message}`;
+                }
+                
+                return res.status(400).json({ message });
             }
-        } else {
+        }
+        
+        // ========== Invalid MFA Method ==========
+        else {
             return res.status(400).json({ 
                 message: 'Invalid MFA method. Expected TOTP or PASSKEY' 
             });
         }
         
-        // If verification successful, enable MFA and generate token
+        // ========== Handle Verification Result ==========
         if (verified) {
+            // Enable MFA and activate user
             user.mfa_enabled = true;
             user.status = 'active';
-            user.challengeId = undefined; // Clear challenge ID after successful setup
+            user.challengeId = undefined; // Clear challenge after successful verification
             await user.save();
             
-            // Generate JWT token for login
+            // Generate JWT token
             const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
             
-            res.status(200).json({ 
+            return res.status(200).json({ 
                 message: verificationMessage,
-                token: token,
+                token,
                 user: {
                     id: user._id,
                     email: user.email,
                     name: user.name,
                     username: user.username,
+                    role: user.role,
                     mfa_enabled: true,
                     mfa_method: user.mfa_method
                 }
             });
         } else {
-            res.status(401).json({ 
-                message: verificationMessage
-            });
+            return res.status(401).json({ message: verificationMessage });
         }
-    }
-    catch (error) {
+        
+    } catch (error) {
         console.error('MFA verification error:', error);
-        res.status(500).json({ 
+        return res.status(500).json({ 
             message: 'Failed to verify MFA', 
             error: error.message 
         });
     }
+}
+
+// ========== Helper: Verify TOTP ==========
+async function verifyTOTP(user, totpCode) {
+    if (!totpCode) {
+        throw new Error('TOTP code is required');
+    }
+    
+    if (!user.mfa_secret) {
+        throw new Error('MFA not setup for this user');
+    }
+    
+    return speakeasy.totp.verify({
+        secret: user.mfa_secret,
+        encoding: 'base32',
+        token: totpCode,
+        window: 2
+    });
 }
 
 // Verify MFA for user login
@@ -729,8 +881,8 @@ module.exports = {
     loginUser, 
     inviteUser, 
     setupPassword, 
-    selectMfaMethod, 
-    verifyMfa,
+    selectMfaMethod,
+    verifyMfaSetup,
     verifyLoginMfa,
     generatePasskeyAuthOptions,
     verifyPasskeyAuth,
