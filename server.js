@@ -19,6 +19,8 @@ const expenseRoutes = require('./app/routes/expesne.routes');
 const reportsRoutes = require('./app/routes/reports.routes');
 const overviewRoutes = require('./app/routes/read.routes');
 const adminRoutes = require('./app/routes/admin.routes');
+const superAdminRoutes = require('./app/routes/superAdmin.routes');
+const { createFirstSuperAdmin, checkSuperAdminExists } = require('./app/controller/superAdmin.controller');
 
 const app = express()
 const port = 3000
@@ -39,7 +41,7 @@ app.use(express.urlencoded({ extended: true }))
 app.use(
   pinoHttp({
     logger,
-    customLogLevel: (res, err) => {
+    customLogLevel: (res) => {
       if (res.statusCode >= 500) return "error";
       if (res.statusCode >= 400) return "warn";
       return "info";
@@ -70,6 +72,13 @@ app.use('/api/v1/categories', authMiddleware, categoryRoutes)
 app.use('/api/v1/expenses', authMiddleware, expenseRoutes)
 app.use('/api/v1/reports', authMiddleware, reportsRoutes)
 app.use('/api/v1/admin', authMiddleware, adminRoutes)
+// Bootstrap routes (unprotected - for initial setup only)
+// These must be registered BEFORE the protected routes
+app.get('/api/v1/super-admin/bootstrap/check', checkSuperAdminExists);
+app.post('/api/v1/super-admin/bootstrap/create', createFirstSuperAdmin);
+
+// Protected super admin routes (registered after bootstrap to avoid route conflicts)
+app.use('/api/v1/super-admin', authMiddleware, superAdminRoutes)
 app.use('/api/v1/overview', overviewRoutes)
 
 

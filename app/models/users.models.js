@@ -77,11 +77,17 @@ const userSchema = new mongoose.Schema({
         enum:['active', 'inactive', 'pending'],
         default:null
     },
-    user_type:{
+    role:{
         type:String,
         enum:['ADMIN', 'USER'],
         default:null
     },
+    member_type:{
+        type:String,
+        enum:['MANAGER', 'MEMBER'],
+        default:'MEMBER'
+    }
+
     
 }, { timestamps: true });
 

@@ -53,8 +53,32 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
         
-        // Admin can login directly without MFA
-        if (user.role === 'admin') {
+        // Admin can login directly without MFA (if MFA is not enabled yet)
+        // Check for both 'admin' (lowercase) and 'ADMIN' (uppercase) for backward compatibility
+        if (user.role === 'admin' || user.role === 'ADMIN') {
+            // If MFA is enabled, admin must use MFA flow
+            if (user.mfa_enabled) {
+                // Generate challengeId for MFA verification
+                const challengeId = crypto.randomBytes(24).toString("hex");
+                user.challengeId = challengeId;
+                await user.save();
+                
+                // Return appropriate response based on MFA method
+                const response = {
+                    message: 'Password is correct. Please verify MFA.',
+                    mfa_method: user.mfa_method,
+                    challengeId: challengeId
+                };
+                
+                // Add guidance for PASSKEY MFA
+                if (user.mfa_method === 'PASSKEY') {
+                    response.note = 'For PASSKEY MFA, use /api/v1/users/passkey-auth-options and /api/v1/users/passkey-auth-verify endpoints instead of verify-login-mfa';
+                }
+                
+                return res.status(200).json(response);
+            }
+            
+            // MFA not enabled - admin can login directly
             // Update status to active if pending
             if (user.status === 'pending') {
                 user.status = 'active';
@@ -87,11 +111,19 @@ const loginUser = async (req, res) => {
         user.challengeId = challengeId;
         await user.save();
         
-        res.status(200).json({ 
+        // Return appropriate response based on MFA method
+        const response = {
             message: 'Password is correct. Please verify MFA.',
             mfa_method: user.mfa_method,
             challengeId: challengeId
-        });
+        };
+        
+        // Add guidance for PASSKEY MFA
+        if (user.mfa_method === 'PASSKEY') {
+            response.note = 'For PASSKEY MFA, use /api/v1/users/passkey-auth-options and /api/v1/users/passkey-auth-verify endpoints instead of verify-login-mfa';
+        }
+        
+        res.status(200).json(response);
     } catch (error) {
         res.status(500).json({ message: 'Failed to login', error: error.message });
     }

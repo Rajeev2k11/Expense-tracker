@@ -9,7 +9,7 @@ const teamSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    owner: {
+    team_leader: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
@@ -17,7 +17,15 @@ const teamSchema = new mongoose.Schema({
     members: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-    }]
+    }],
+    monthly_budget: {
+        type: Number,
+        required: false
+    },
+    monthly_budget_remaining: {
+        type: Number,
+        required: false
+    }
 });
 
 const Team = mongoose.model('Team', teamSchema);
