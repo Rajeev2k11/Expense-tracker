@@ -16,8 +16,13 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // WebAuthn configuration
 const rpName = 'Expense Tracker';
-const rpID = process.env.RP_ID?.trim() || 'localhost'; // Your domain (e.g., 'example.com')
-const origin = process.env.FRONTEND_APP_URL?.trim() || 'http://localhost:5173';
+// Ensure rpID is always a string - handle undefined/null cases
+const rpID = (process.env.RP_ID && typeof process.env.RP_ID === 'string') 
+    ? process.env.RP_ID.trim() 
+    : 'localhost'; // Your domain (e.g., 'example.com')
+const origin = (process.env.FRONTEND_APP_URL && typeof process.env.FRONTEND_APP_URL === 'string')
+    ? process.env.FRONTEND_APP_URL.trim()
+    : 'http://localhost:5173';
 
 const getAllUsers = async (req, res) => {
     try {
@@ -41,10 +46,19 @@ const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
         
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+        
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(401).json({ message: 'Invalid email or password' });
+        }
+        
+        // Check if user has a password set
+        if (!user.password) {
+            return res.status(401).json({ message: 'Password not set. Please setup your password first.' });
         }
         
         // Compare password
@@ -53,8 +67,8 @@ const loginUser = async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
         
-        // Admin can login directly without MFA
-        if (user.role === 'admin') {
+        // Admin can login directly without MFA (check both lowercase and uppercase for backward compatibility)
+        if (user.role === 'admin' || user.role === 'ADMIN') {
             // Update status to active if pending
             if (user.status === 'pending') {
                 user.status = 'active';
@@ -93,6 +107,7 @@ const loginUser = async (req, res) => {
             challengeId: challengeId
         });
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ message: 'Failed to login', error: error.message });
     }
 }
@@ -328,7 +343,8 @@ const selectMfaMethod = async (req, res) => {
     }
 }
 
-// Verify MFA setup - handles both TOTP and PASSKEY verification
+// Verify MFA setup - handles both TOTP and PASSKEY verification (REGISTRATION/SETUP ONLY)
+// This endpoint is used during initial MFA setup after password setup or admin registration
 const verifyMfaSetup = async (req, res) => {
     try {
         const { challengeId, code, credential } = req.body;
@@ -609,21 +625,22 @@ async function verifyTOTP(user, totpCode) {
     });
 }
 
-// Verify MFA for user login
+// Verify MFA for user login (authentication) - handles both TOTP and PASSKEY
 const verifyLoginMfa = async (req, res) => {
     try {
-        const { challengeId, totpCode } = req.body;
+        const { challengeId, totpCode, credential } = req.body;
         
         if (!challengeId) {
             return res.status(400).json({ message: 'Challenge ID is required' });
         }
         
-        // Find user by challengeId
+        // Find user by challengeId (from login)
         const user = await User.findOne({ challengeId: challengeId });
         if (!user) {
             return res.status(401).json({ message: 'Invalid or expired challenge' });
         }
         
+        // This endpoint is for authentication (login), user must have MFA enabled
         if (!user.mfa_enabled) {
             return res.status(400).json({ message: 'MFA is not enabled for this user' });
         }
@@ -634,7 +651,7 @@ const verifyLoginMfa = async (req, res) => {
         
         let verified = false;
         
-        // Handle TOTP verification
+        // Handle TOTP verification for login
         if (user.mfa_method === 'TOTP') {
             if (!totpCode) {
                 return res.status(400).json({ message: 'TOTP code is required' });
@@ -651,15 +668,125 @@ const verifyLoginMfa = async (req, res) => {
                 token: totpCode,
                 window: 2
             });
+            
+            if (!verified) {
+                return res.status(401).json({ message: 'Invalid TOTP code. Please try again.' });
+            }
+        } 
+        // Handle PASSKEY verification for login
+        else if (user.mfa_method === 'PASSKEY') {
+            if (!credential) {
+                return res.status(400).json({ message: 'Passkey credential is required' });
+            }
+            
+            if (!user.webauthn_challenge) {
+                return res.status(400).json({ 
+                    message: 'No authentication challenge found. Please generate passkey auth options first.' 
+                });
+            }
+            
+            if (!user.webauthn_credentials || user.webauthn_credentials.length === 0) {
+                return res.status(400).json({ 
+                    message: 'No passkey credentials found for this user' 
+                });
+            }
+            
+            // Find the matching credential
+            // The credential.id comes from browser as base64url string
+            // We need to convert it to base64 to match what's stored in DB
+            let credentialIDFromRequest;
+            try {
+                // Convert base64url to Buffer, then to base64 string
+                const credentialIDBuffer = Buffer.from(credential.id, 'base64url');
+                credentialIDFromRequest = credentialIDBuffer.toString('base64');
+            } catch (err) {
+                console.error('Error converting credential ID:', err);
+                return res.status(400).json({ 
+                    message: 'Invalid credential ID format',
+                    error: err.message 
+                });
+            }
+            
+            // Try to find matching credential - compare both as base64 strings
+            let dbCredential = user.webauthn_credentials.find(
+                cred => cred && cred.credentialID === credentialIDFromRequest
+            );
+            
+            // If not found, try comparing as Buffers (in case of padding differences)
+            if (!dbCredential) {
+                try {
+                    const requestBuffer = Buffer.from(credential.id, 'base64url');
+                    dbCredential = user.webauthn_credentials.find(cred => {
+                        if (!cred || !cred.credentialID) return false;
+                        try {
+                            const dbBuffer = Buffer.from(cred.credentialID, 'base64');
+                            return requestBuffer.equals(dbBuffer);
+                        } catch (_e) {
+                            return false;
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error comparing credential IDs as buffers:', err);
+                }
+            }
+            
+            if (!dbCredential) {
+                console.error('Credential not found. Request credential ID (base64):', credentialIDFromRequest);
+                console.error('Available credential IDs:', user.webauthn_credentials.map(c => c?.credentialID));
+                return res.status(401).json({ 
+                    message: 'Credential not found',
+                    debug: {
+                        receivedCredentialId: credentialIDFromRequest,
+                        availableCredentialCount: user.webauthn_credentials.length
+                    }
+                });
+            }
+            
+            // Verify the authentication response (for login, not registration)
+            const verification = await verifyAuthenticationResponse({
+                response: credential,
+                expectedChallenge: user.webauthn_challenge,
+                expectedOrigin: origin,
+                expectedRPID: rpID,
+                authenticator: {
+                    credentialID: Buffer.from(dbCredential.credentialID, 'base64'),
+                    credentialPublicKey: Buffer.from(dbCredential.credentialPublicKey, 'base64'),
+                    counter: dbCredential.counter
+                }
+            });
+            
+            if (!verification.verified) {
+                return res.status(401).json({ message: 'Passkey authentication failed' });
+            }
+            
+            verified = true;
+            
+            // Update counter - find the credential by comparing buffers
+            const requestBuffer = Buffer.from(credential.id, 'base64url');
+            const credIndex = user.webauthn_credentials.findIndex(cred => {
+                if (!cred || !cred.credentialID) return false;
+                try {
+                    const dbBuffer = Buffer.from(cred.credentialID, 'base64');
+                    return requestBuffer.equals(dbBuffer);
+                } catch (_e) {
+                    return false;
+                }
+            });
+            
+            if (credIndex !== -1) {
+                user.webauthn_credentials[credIndex].counter = verification.authenticationInfo.newCounter;
+            }
         } else {
             return res.status(400).json({ 
-                message: 'Please use passkey authentication endpoints for PASSKEY MFA' 
+                message: 'Invalid or unsupported MFA method' 
             });
         }
         
+        // If verified, generate token and clear challenges
         if (verified) {
-            // Clear challengeId after successful verification
+            // Clear challenges after successful verification
             user.challengeId = undefined;
+            user.webauthn_challenge = undefined;
             await user.save();
             
             // Generate JWT token
@@ -677,8 +804,6 @@ const verifyLoginMfa = async (req, res) => {
                     mfa_method: user.mfa_method
                 }
             });
-        } else {
-            res.status(401).json({ message: 'Invalid TOTP code. Please try again.' });
         }
     } catch (error) {
         console.error('Login MFA verification error:', error);
@@ -698,6 +823,14 @@ const generatePasskeyAuthOptions = async (req, res) => {
             return res.status(400).json({ message: 'Email is required' });
         }
         
+        // Validate WebAuthn configuration
+        if (!rpID || typeof rpID !== 'string') {
+            console.error('WebAuthn configuration error: rpID is not a valid string', { rpID, type: typeof rpID });
+            return res.status(500).json({ 
+                message: 'Server configuration error: WebAuthn RP_ID is not properly configured' 
+            });
+        }
+        
         // Find user by email
         const user = await User.findOne({ email });
         if (!user) {
@@ -708,12 +841,32 @@ const generatePasskeyAuthOptions = async (req, res) => {
             return res.status(400).json({ message: 'Passkey not enabled for this user' });
         }
         
-        // Get user's credentials
-        const allowCredentials = user.webauthn_credentials.map(cred => ({
-            id: Buffer.from(cred.credentialID, 'base64'),
-            type: 'public-key',
-            transports: ['internal', 'hybrid']
-        }));
+        if (!user.webauthn_credentials || user.webauthn_credentials.length === 0) {
+            return res.status(400).json({ message: 'No passkey credentials found for this user' });
+        }
+        
+        // Get user's credentials - properly convert credentialID from base64 string to Buffer
+        const allowCredentials = user.webauthn_credentials
+            .filter(cred => cred && cred.credentialID) // Filter out invalid credentials
+            .map(cred => {
+                try {
+                    // credentialID is stored as base64 string, convert to Buffer
+                    const credentialIDBuffer = Buffer.from(cred.credentialID, 'base64');
+                    return {
+                        id: credentialIDBuffer,
+                        type: 'public-key',
+                        transports: ['internal', 'hybrid']
+                    };
+                } catch (err) {
+                    console.error('Error converting credentialID:', err, { credentialID: cred.credentialID });
+                    return null;
+                }
+            })
+            .filter(cred => cred !== null); // Remove any failed conversions
+        
+        if (allowCredentials.length === 0) {
+            return res.status(400).json({ message: 'No valid passkey credentials found' });
+        }
         
         // Generate authentication options
         const options = await generateAuthenticationOptions({
