@@ -2,7 +2,7 @@ const Team = require('../models/team.model');
 
 const createTeam = async (req, res) => {
     try {
-        const { name, owner, members } = req.body;
+        const { name, monthly_budget, description,  members } = req.body;
 
         //only admin can create team
         if(req.user.role !== 'admin'){
@@ -15,10 +15,10 @@ const createTeam = async (req, res) => {
             return res.status(400).json({ message: 'Team name already exists' });
         }
         
-        const team = await Team.create({ name, owner: req.user._id, members });
+        const team = await Team.create({ name, team_leader: req.user._id, members, monthly_budget, description });
         
         // Populate owner and members with user details
-        await team.populate('owner', 'name username email role');
+        await team.populate('team_leader', 'name username email role');
         await team.populate('members', 'name username email role');
         
         res.status(201).json({ message: 'Team created successfully', team: team });
