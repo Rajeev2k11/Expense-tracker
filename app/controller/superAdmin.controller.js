@@ -7,6 +7,13 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const createAdmin = async (req, res) => {
     try {
+        // Check if request body exists
+        if (!req.body || typeof req.body !== 'object') {
+            return res.status(400).json({ 
+                message: 'Request body is required. Please ensure Content-Type is application/json.' 
+            });
+        }
+        
         const { name, username, email } = req.body;
         
         // Validate required fields
@@ -316,7 +323,7 @@ const createFirstSuperAdmin = async (req, res) => {
         // Check if any super admin already exists
         // Super admin is identified by role 'ADMIN' (or we can add a separate super_admin field)
         const existingSuperAdmin = await User.findOne({ 
-            role: 'ADMIN',
+            role: 'SUPER_ADMIN',
             status: 'active'
         });
         
@@ -355,7 +362,7 @@ const createFirstSuperAdmin = async (req, res) => {
             username,
             email,
             password: hashedPassword,
-            role: 'ADMIN', // Super admin has ADMIN role
+            role: 'SUPER_ADMIN', // Super admin has ADMIN role
             invitation: 'accepted', // No invitation needed for first admin
             status: 'active', // First super admin is active immediately
             challengeId: challengeId,
@@ -387,7 +394,7 @@ const createFirstSuperAdmin = async (req, res) => {
 const checkSuperAdminExists = async (req, res) => {
     try {
         const existingSuperAdmin = await User.findOne({ 
-            role: 'ADMIN',
+            role: 'SUPER_ADMIN',
             status: 'active'
         });
         

@@ -13,7 +13,8 @@ const {
     verifyLoginMfa,
     generatePasskeyAuthOptions,
     verifyPasskeyAuth,
-    signUpAdmin
+    signUpAdmin,
+    getCurrentUserProfile
 } = require('../controller/users.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
@@ -111,6 +112,178 @@ router.post('/login', loginUser);
  *         description: Failed to get users
  */
 router.get('/', authMiddleware, getAllUsers);
+
+/**
+ * @swagger
+ * /api/v1/users/readUserProfile:
+ *   get:
+ *     summary: Get current user profile with teams and role
+ *     description: |
+ *       Returns the currently authenticated user's profile information including:
+ *       - User details (id, name, username, email, role, status, member_type)
+ *       - Default team (first team where user is leader, or first team where user is member)
+ *       - Active team (currently same as default team)
+ *       - All teams the user is associated with (as leader or member)
+ *       
+ *       This endpoint should be called after login to get user context.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [ADMIN, USER, SUPER_ADMIN]
+ *                       example: ADMIN
+ *                     status:
+ *                       type: string
+ *                       enum: [active, inactive, pending]
+ *                       example: active
+ *                     member_type:
+ *                       type: string
+ *                       enum: [MANAGER, MEMBER]
+ *                       example: MEMBER
+ *                 defaultTeam:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     team_leader:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         username:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                     members:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     monthly_budget:
+ *                       type: number
+ *                     monthly_budget_remaining:
+ *                       type: number
+ *                 activeTeam:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     team_leader:
+ *                       type: object
+ *                     members:
+ *                       type: array
+ *                     monthly_budget:
+ *                       type: number
+ *                     monthly_budget_remaining:
+ *                       type: number
+ *                 allTeams:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *             examples:
+ *               withTeams:
+ *                 summary: User with teams
+ *                 value:
+ *                   user:
+ *                     id: "673abc123def456789012345"
+ *                     name: "John Doe"
+ *                     username: "johndoe"
+ *                     email: "john@example.com"
+ *                     role: "ADMIN"
+ *                     status: "active"
+ *                     member_type: "MEMBER"
+ *                   defaultTeam:
+ *                     id: "673def456abc789012345678"
+ *                     name: "Development Team"
+ *                     description: "Main development team"
+ *                     team_leader:
+ *                       _id: "673abc123def456789012345"
+ *                       name: "John Doe"
+ *                       username: "johndoe"
+ *                       email: "john@example.com"
+ *                       role: "ADMIN"
+ *                     members: []
+ *                     monthly_budget: 10000
+ *                     monthly_budget_remaining: 7500
+ *                   activeTeam:
+ *                     id: "673def456abc789012345678"
+ *                     name: "Development Team"
+ *                     description: "Main development team"
+ *                     team_leader:
+ *                       _id: "673abc123def456789012345"
+ *                       name: "John Doe"
+ *                       username: "johndoe"
+ *                       email: "john@example.com"
+ *                       role: "ADMIN"
+ *                     members: []
+ *                     monthly_budget: 10000
+ *                     monthly_budget_remaining: 7500
+ *                   allTeams:
+ *                     - id: "673def456abc789012345678"
+ *                       name: "Development Team"
+ *               withoutTeams:
+ *                 summary: User without teams
+ *                 value:
+ *                   user:
+ *                     id: "673abc123def456789012345"
+ *                     name: "John Doe"
+ *                     username: "johndoe"
+ *                     email: "john@example.com"
+ *                     role: "USER"
+ *                     status: "active"
+ *                     member_type: "MEMBER"
+ *                   defaultTeam: null
+ *                   activeTeam: null
+ *                   allTeams: []
+ *       401:
+ *         description: Unauthorized - authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Failed to get user profile
+ */
+router.get('/readUserProfile', authMiddleware, getCurrentUserProfile);
 
 /**
  * @swagger

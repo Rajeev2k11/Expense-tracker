@@ -1,4 +1,5 @@
 const User = require('../models/users.models');
+const Team = require('../models/team.model');
 const bcrypt = require('bcrypt');
 const { Resend } = require("resend");
 const jwt = require('jsonwebtoken');
@@ -907,6 +908,114 @@ const verifyPasskeyAuth = async (req, res) => {
     }
 }
 
+// Get current user profile with teams and role
+const getCurrentUserProfile = async (req, res) => {
+    try {
+        // Get user ID from auth middleware
+        const userId = req.userId;
+        
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+        
+        // Find the user
+        const user = await User.findById(userId).select('-password -mfa_secret -webauthn_credentials');
+        
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Find teams where user is team leader
+        const teamsAsLeader = await Team.find({ team_leader: userId })
+            .populate('team_leader', 'name username email role')
+            .populate('members', 'name username email role');
+        
+        // Find teams where user is a member
+        const teamsAsMember = await Team.find({ members: userId })
+            .populate('team_leader', 'name username email role')
+            .populate('members', 'name username email role');
+        
+        // Combine all teams (avoid duplicates)
+        const allTeams = [];
+        const teamIds = new Set();
+        
+        // Add teams where user is leader
+        teamsAsLeader.forEach(team => {
+            if (!teamIds.has(team._id.toString())) {
+                teamIds.add(team._id.toString());
+                allTeams.push(team);
+            }
+        });
+        
+        // Add teams where user is member
+        teamsAsMember.forEach(team => {
+            if (!teamIds.has(team._id.toString())) {
+                teamIds.add(team._id.toString());
+                allTeams.push(team);
+            }
+        });
+        
+        // Default team: First team where user is leader, or first team where user is member
+        let defaultTeam = null;
+        if (teamsAsLeader.length > 0) {
+            defaultTeam = teamsAsLeader[0];
+        } else if (teamsAsMember.length > 0) {
+            defaultTeam = teamsAsMember[0];
+        }
+        
+        // Active team: For now, same as default team (can be enhanced later to store user preference)
+        const activeTeam = defaultTeam;
+        
+        // Format response
+        const response = {
+            user: {
+                id: user._id,
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                role: user.role,
+                status: user.status,
+                member_type: user.member_type
+            },
+            defaultTeam: defaultTeam ? {
+                id: defaultTeam._id,
+                name: defaultTeam.name,
+                description: defaultTeam.description,
+                team_leader: defaultTeam.team_leader,
+                members: defaultTeam.members,
+                monthly_budget: defaultTeam.monthly_budget,
+                monthly_budget_remaining: defaultTeam.monthly_budget_remaining
+            } : null,
+            activeTeam: activeTeam ? {
+                id: activeTeam._id,
+                name: activeTeam.name,
+                description: activeTeam.description,
+                team_leader: activeTeam.team_leader,
+                members: activeTeam.members,
+                monthly_budget: activeTeam.monthly_budget,
+                monthly_budget_remaining: activeTeam.monthly_budget_remaining
+            } : null,
+            allTeams: allTeams.map(team => ({
+                id: team._id,
+                name: team.name,
+                description: team.description,
+                team_leader: team.team_leader,
+                members: team.members,
+                monthly_budget: team.monthly_budget,
+                monthly_budget_remaining: team.monthly_budget_remaining
+            }))
+        };
+        
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('Get current user profile error:', error);
+        res.status(500).json({ 
+            message: 'Failed to get user profile', 
+            error: error.message 
+        });
+    }
+}
+
 module.exports = { 
     getAllUsers, 
     getUserById, 
@@ -918,5 +1027,6 @@ module.exports = {
     verifyLoginMfa,
     generatePasskeyAuthOptions,
     verifyPasskeyAuth,
-    signUpAdmin
+    signUpAdmin,
+    getCurrentUserProfile
 }
