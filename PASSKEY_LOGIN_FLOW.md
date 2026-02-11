@@ -1,9 +1,11 @@
 # Passkey (PASSKEY) MFA Login Flow
 
 ## Problem
+
 When using PASSKEY MFA, you cannot use `/api/v1/users/verify-login-mfa`. You must use the dedicated passkey authentication endpoints instead.
 
 ## Why?
+
 The `verify-login-mfa` endpoint only supports **TOTP** MFA. For **PASSKEY** MFA, you need to use separate endpoints because passkey authentication works differently (using WebAuthn API).
 
 ---
@@ -23,6 +25,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Password is correct. Please verify MFA.",
@@ -49,6 +52,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Authentication options generated",
@@ -77,7 +81,7 @@ In your frontend application, use the WebAuthn API with the options from Step 2:
 ```javascript
 // Use navigator.credentials.get() with the options
 const credential = await navigator.credentials.get({
-  publicKey: options  // options from Step 2
+  publicKey: options, // options from Step 2
 });
 ```
 
@@ -108,6 +112,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Authentication successful",
@@ -180,12 +185,12 @@ Content-Type: application/json
 
 ## Endpoint Summary
 
-| Endpoint | Purpose | MFA Method |
-|----------|---------|------------|
-| `POST /api/v1/users/login` | Initial login | Returns MFA method |
-| `POST /api/v1/users/verify-login-mfa` | ✅ **TOTP only** | TOTP |
-| `POST /api/v1/users/passkey-auth-options` | ✅ **PASSKEY** - Get auth options | PASSKEY |
-| `POST /api/v1/users/passkey-auth-verify` | ✅ **PASSKEY** - Verify authentication | PASSKEY |
+| Endpoint                                  | Purpose                                | MFA Method         |
+| ----------------------------------------- | -------------------------------------- | ------------------ |
+| `POST /api/v1/users/login`                | Initial login                          | Returns MFA method |
+| `POST /api/v1/users/verify-login-mfa`     | ✅ **TOTP only**                       | TOTP               |
+| `POST /api/v1/users/passkey-auth-options` | ✅ **PASSKEY** - Get auth options      | PASSKEY            |
+| `POST /api/v1/users/passkey-auth-verify`  | ✅ **PASSKEY** - Verify authentication | PASSKEY            |
 
 ---
 
@@ -213,6 +218,7 @@ Content-Type: application/json
 ## Error Message Explanation
 
 If you see this error:
+
 ```json
 {
   "message": "Please use passkey authentication endpoints for PASSKEY MFA"
@@ -220,6 +226,7 @@ If you see this error:
 ```
 
 **It means:**
+
 - You're trying to use `/verify-login-mfa` with PASSKEY MFA
 - You need to use `/passkey-auth-options` and `/passkey-auth-verify` instead
 
@@ -229,47 +236,51 @@ If you see this error:
 
 ```javascript
 // Step 1: Login
-const loginResponse = await fetch('/api/v1/users/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ email, password })
+const loginResponse = await fetch("/api/v1/users/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, password }),
 });
 const { mfa_method, challengeId } = await loginResponse.json();
 
-if (mfa_method === 'PASSKEY') {
+if (mfa_method === "PASSKEY") {
   // Step 2: Get passkey auth options
-  const optionsResponse = await fetch('/api/v1/users/passkey-auth-options', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email })
+  const optionsResponse = await fetch("/api/v1/users/passkey-auth-options", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
   });
   const { options } = await optionsResponse.json();
-  
+
   // Step 3: Get credential from browser
   const credential = await navigator.credentials.get({
-    publicKey: options
+    publicKey: options,
   });
-  
+
   // Step 4: Verify passkey
-  const verifyResponse = await fetch('/api/v1/users/passkey-auth-verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const verifyResponse = await fetch("/api/v1/users/passkey-auth-verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       email,
       credential: {
         id: credential.id,
         rawId: arrayBufferToBase64(credential.rawId),
         response: {
-          clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
-          authenticatorData: arrayBufferToBase64(credential.response.authenticatorData),
+          clientDataJSON: arrayBufferToBase64(
+            credential.response.clientDataJSON,
+          ),
+          authenticatorData: arrayBufferToBase64(
+            credential.response.authenticatorData,
+          ),
           signature: arrayBufferToBase64(credential.response.signature),
-          userHandle: arrayBufferToBase64(credential.response.userHandle)
+          userHandle: arrayBufferToBase64(credential.response.userHandle),
         },
-        type: credential.type
-      }
-    })
+        type: credential.type,
+      },
+    }),
   });
-  
+
   const { token, user } = await verifyResponse.json();
   // Use token for authenticated requests
 }
@@ -280,10 +291,10 @@ if (mfa_method === 'PASSKEY') {
 ## Summary
 
 ✅ **For PASSKEY MFA:**
+
 1. Login with email/password
 2. Use `/passkey-auth-options` to get WebAuthn options
 3. Use browser WebAuthn API to get credential
 4. Use `/passkey-auth-verify` to verify and get token
 
 ❌ **Do NOT use `/verify-login-mfa` for PASSKEY MFA**
-

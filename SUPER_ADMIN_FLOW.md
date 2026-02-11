@@ -1,6 +1,7 @@
 # Super Admin - Admin Invitation Flow & Structure
 
 ## Overview
+
 This document explains how super admins can manage pending ADMIN user invitations in the Expense Tracker system.
 
 ## Flow Diagram
@@ -58,6 +59,7 @@ This document explains how super admins can manage pending ADMIN user invitation
 ## User States
 
 ### 1. **Initial Invitation State**
+
 ```javascript
 {
   role: 'ADMIN',
@@ -70,6 +72,7 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 ### 2. **After Admin Sets Password**
+
 ```javascript
 {
   role: 'ADMIN',
@@ -83,6 +86,7 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 ### 3. **After Super Admin Approves**
+
 ```javascript
 {
   role: 'ADMIN',
@@ -94,6 +98,7 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 ### 4. **After MFA Setup**
+
 ```javascript
 {
   role: 'ADMIN',
@@ -108,20 +113,23 @@ This document explains how super admins can manage pending ADMIN user invitation
 ## API Endpoints
 
 ### 1. Create Admin Invitation
+
 **Endpoint:** `POST /api/v1/super-admin/create-admin`
 
 **Description:** Super admin invites a new admin user by email.
 
 **Request Body:**
+
 ```json
 {
   "email": "admin@example.com",
-  "name": "John Admin",        // optional
-  "username": "johnadmin"      // optional
+  "name": "John Admin", // optional
+  "username": "johnadmin" // optional
 }
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Admin invited successfully",
@@ -130,6 +138,7 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 **Creates user with:**
+
 - `role: 'ADMIN'`
 - `invitation: 'pending'`
 - `status: 'pending'`
@@ -138,11 +147,13 @@ This document explains how super admins can manage pending ADMIN user invitation
 ---
 
 ### 2. Get All Pending Admin Invitations
+
 **Endpoint:** `GET /api/v1/super-admin/pending-invitations`
 
 **Description:** Retrieve all admin users with pending invitations.
 
 **Response:**
+
 ```json
 {
   "message": "Pending admin invitations retrieved successfully",
@@ -164,17 +175,20 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 **Filters:**
+
 - `role: 'ADMIN'`
 - `invitation: 'pending'`
 
 ---
 
 ### 3. Get Specific Pending Admin Invitation
+
 **Endpoint:** `GET /api/v1/super-admin/pending-invitations/:userId`
 
 **Description:** Get detailed information about a specific pending admin invitation.
 
 **Response:**
+
 ```json
 {
   "message": "Pending admin invitation retrieved successfully",
@@ -199,15 +213,18 @@ This document explains how super admins can manage pending ADMIN user invitation
 ---
 
 ### 4. Accept/Approve Pending Admin Invitation
+
 **Endpoint:** `POST /api/v1/super-admin/pending-invitations/:userId/accept`
 
 **Description:** Super admin approves a pending admin invitation, making the admin account active.
 
 **Behavior:**
+
 - If `invitation: 'pending'` → Admin hasn't set password yet (approves for future access)
 - If `invitation: 'accepted'` → Admin has set password (activates account immediately)
 
 **Response:**
+
 ```json
 {
   "message": "Admin invitation approved successfully",
@@ -225,16 +242,19 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 **Updates:**
+
 - `status: 'active'` (from 'pending')
 
 ---
 
 ### 5. Reject/Cancel Pending Admin Invitation
+
 **Endpoint:** `POST /api/v1/super-admin/pending-invitations/:userId/reject`
 
 **Description:** Super admin rejects a pending admin invitation, canceling it.
 
 **Response:**
+
 ```json
 {
   "message": "Admin invitation rejected successfully",
@@ -248,6 +268,7 @@ This document explains how super admins can manage pending ADMIN user invitation
 ```
 
 **Updates:**
+
 - `invitation: 'rejected'`
 - `status: 'inactive'`
 - Clears `inviteToken` and `inviteTokenExpiry`
@@ -257,46 +278,58 @@ This document explains how super admins can manage pending ADMIN user invitation
 ## Complete User Journey
 
 ### Step 1: Super Admin Invites Admin
+
 ```bash
 POST /api/v1/super-admin/create-admin
 Authorization: Bearer <super-admin-token>
 Body: { "email": "admin@example.com" }
 ```
+
 → Admin receives email with invitation link
 
 ### Step 2: Admin Sets Password
+
 ```bash
 POST /api/v1/users/setup-password
 Body: { "token": "<invite-token>", "password": "SecurePass123!" }
 ```
+
 → `invitation: 'accepted'`, token cleared, `challengeId` created
 
 ### Step 3: Super Admin Views Pending Invitations
+
 ```bash
 GET /api/v1/super-admin/pending-invitations
 Authorization: Bearer <super-admin-token>
 ```
+
 → See all pending admin invitations
 
 ### Step 4: Super Admin Approves
+
 ```bash
 POST /api/v1/super-admin/pending-invitations/{userId}/accept
 Authorization: Bearer <super-admin-token>
 ```
+
 → `status: 'active'` - Admin can now login (after MFA setup)
 
 ### Step 5: Admin Completes MFA Setup
+
 ```bash
 POST /api/v1/users/select-mfa-method
 POST /api/v1/users/verify-mfa-setup
 ```
+
 → Admin completes MFA setup
 
 ### Step 6: Admin Can Login
+
 ```bash
 POST /api/v1/users/login
 Body: { "email": "admin@example.com", "password": "SecurePass123!" }
 ```
+
 → Admin logs in successfully
 
 ---
@@ -304,6 +337,7 @@ Body: { "email": "admin@example.com", "password": "SecurePass123!" }
 ## Database Schema Reference
 
 ### User Model Fields (Relevant)
+
 ```javascript
 {
   role: {
@@ -345,7 +379,9 @@ Body: { "email": "admin@example.com", "password": "SecurePass123!" }
 ## Error Scenarios
 
 ### Expired Token
+
 If admin tries to set password after 7 days:
+
 ```json
 {
   "message": "Invalid or expired token"
@@ -353,7 +389,9 @@ If admin tries to set password after 7 days:
 ```
 
 ### Already Accepted
+
 If trying to approve already accepted invitation:
+
 ```json
 {
   "message": "Pending admin invitation not found or already processed"
@@ -361,7 +399,9 @@ If trying to approve already accepted invitation:
 ```
 
 ### Token Expired Before Approval
+
 If super admin tries to approve but token expired:
+
 ```json
 {
   "message": "Invitation token is expired or invalid. Admin must set their password first or you need to resend the invitation."
@@ -373,6 +413,7 @@ If super admin tries to approve but token expired:
 ## Example Usage Flow
 
 ### Complete Example:
+
 ```javascript
 // 1. Super Admin invites
 POST /api/v1/super-admin/create-admin
@@ -422,4 +463,3 @@ server.js                            # Route registration
 - **Key States**: `invitation` tracks password setup, `status` tracks account activation
 - **Super Admin Actions**: View pending, approve, or reject admin invitations
 - **Security**: All endpoints require authentication, tokens expire after 7 days
-

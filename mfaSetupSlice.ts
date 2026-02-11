@@ -1,8 +1,8 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
 
 // API base URL - adjust according to your environment
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 // Define types
 interface MfaSetupState {
@@ -27,53 +27,66 @@ const initialState: MfaSetupState = {
 
 // Async thunk to select MFA method
 export const selectMfaMethod = createAsyncThunk(
-  'mfaSetup/selectMfaMethod',
+  "mfaSetup/selectMfaMethod",
   async (
-    { challengeId, mfaMethod }: { challengeId: string; mfaMethod: 'TOTP' | 'PASSKEY' },
-    { rejectWithValue }
+    {
+      challengeId,
+      mfaMethod,
+    }: { challengeId: string; mfaMethod: "TOTP" | "PASSKEY" },
+    { rejectWithValue },
   ) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/v1/users/select-mfa-method`, {
-        challengeId,
-        mfaMethod,
-      });
+      const response = await axios.post(
+        `${API_BASE_URL}/api/v1/users/select-mfa-method`,
+        {
+          challengeId,
+          mfaMethod,
+        },
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to select MFA method'
+        error.response?.data?.message || "Failed to select MFA method",
       );
     }
-  }
+  },
 );
 
 // Async thunk to verify MFA setup (both TOTP and PASSKEY)
 export const verifyMfaSetup = createAsyncThunk(
-  'mfaSetup/verifyMfaSetup',
+  "mfaSetup/verifyMfaSetup",
   async (
-    { challengeId, code, credential }: { 
-      challengeId: string; 
-      code?: string; 
-      credential?: any 
+    {
+      challengeId,
+      code,
+      credential,
+    }: {
+      challengeId: string;
+      code?: string;
+      credential?: any;
     },
-    { rejectWithValue }
+    { rejectWithValue },
   ) => {
     try {
       const payload: any = { challengeId };
       if (code) payload.code = code;
       if (credential) payload.credential = credential;
-      
-      const response = await axios.post(`${API_BASE_URL}/api/v1/users/verify-mfa-setup`, payload);
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/v1/users/verify-mfa-setup`,
+        payload,
+      );
       return response.data;
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 'Failed to verify MFA'
+        error.response?.data?.message || "Failed to verify MFA",
       );
     }
-  }
+  },
 );
 
 const mfaSetupSlice = createSlice({
-  name: 'mfaSetup',
+  name: "mfaSetup",
   initialState,
   reducers: {
     resetMfaSetup: (state) => {
@@ -128,6 +141,6 @@ const mfaSetupSlice = createSlice({
   },
 });
 
-export const { resetMfaSetup, setChallengeId, clearMfaSetup } = mfaSetupSlice.actions;
+export const { resetMfaSetup, setChallengeId, clearMfaSetup } =
+  mfaSetupSlice.actions;
 export default mfaSetupSlice.reducer;
-

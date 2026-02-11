@@ -1,13 +1,16 @@
 # Super Admin Login Flow - Fixed Issue
 
 ## Problem
+
 Super admin was getting error: `"MFA is not enabled for this user"` when calling `users/verify-login-mfa`.
 
 ## Root Cause
+
 1. **Role Mismatch**: Login checked for `role === 'admin'` (lowercase), but super admin has `role: 'ADMIN'` (uppercase)
 2. **Wrong Endpoint**: `verify-login-mfa` is ONLY for login flow AFTER MFA is enabled, not for initial MFA setup
 
 ## Fix Applied
+
 - Updated login to check for both `'admin'` and `'ADMIN'` roles
 - Super admin can now login WITHOUT MFA (gets token directly)
 - Super admin can optionally enable MFA later
@@ -29,6 +32,7 @@ Body: {
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Login successful",
@@ -52,6 +56,7 @@ Body: {
 If you want to enable MFA for security:
 
 #### Step 1: Login First (Without MFA)
+
 ```bash
 POST /api/v1/users/login
 Body: {
@@ -59,6 +64,7 @@ Body: {
   "password": "YourPassword"
 }
 ```
+
 → Get token directly (MFA not enabled yet)
 
 #### Step 2: Setup MFA (Optional - for future logins)
@@ -123,11 +129,11 @@ Body: {
 
 ## Key Differences
 
-| Endpoint | Purpose | When to Use |
-|----------|---------|-------------|
-| `verify-mfa-setup` | **Enable MFA** initially | During initial setup (uses challengeId from bootstrap or setup) |
-| `verify-login-mfa` | **Login with MFA** | After MFA is enabled, during login flow (uses challengeId from login) |
-| `login` | **Login** | Login without MFA (for admins) or get challengeId for MFA verification |
+| Endpoint           | Purpose                  | When to Use                                                            |
+| ------------------ | ------------------------ | ---------------------------------------------------------------------- |
+| `verify-mfa-setup` | **Enable MFA** initially | During initial setup (uses challengeId from bootstrap or setup)        |
+| `verify-login-mfa` | **Login with MFA**       | After MFA is enabled, during login flow (uses challengeId from login)  |
+| `login`            | **Login**                | Login without MFA (for admins) or get challengeId for MFA verification |
 
 ---
 
@@ -169,4 +175,3 @@ Body: {
 
 # ✅ You should get a token directly!
 ```
-

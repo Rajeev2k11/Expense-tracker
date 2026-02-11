@@ -52,16 +52,17 @@ Extracted credential data: { hasCredentialID: ..., credentialIDLength: ..., ... 
 ```
 
 **Frontend Check:**
+
 ```typescript
 // Make sure you're converting to base64url, NOT base64
 const uint8ArrayToBase64url = (bytes: Uint8Array): string => {
-  let binary = '';
+  let binary = "";
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   const base64 = btoa(binary);
   // IMPORTANT: Replace characters for base64url format
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 };
 ```
 
@@ -70,11 +71,13 @@ const uint8ArrayToBase64url = (bytes: Uint8Array): string => {
 **Problem:** The challenge in the credential doesn't match the stored challenge
 
 **Check Server Logs For:**
+
 ```
 Expected challenge: ABC123...
 ```
 
-**Solution:** 
+**Solution:**
+
 1. Ensure you're using the same `challengeId` that was returned from `/select-mfa-method`
 2. Don't regenerate or modify the challenge
 3. The challenge is stored in `user.webauthn_challenge` on the server
@@ -84,12 +87,14 @@ Expected challenge: ABC123...
 **Problem:** The origin or RP ID in the credential doesn't match server expectations
 
 **Check Server Logs For:**
+
 ```
 Expected origin: http://localhost:3000
 Expected RP ID: localhost
 ```
 
 **Solution:**
+
 1. Check your `.env` file:
    ```
    FRONTEND_APP_URL=http://localhost:3000
@@ -103,6 +108,7 @@ Expected RP ID: localhost
 **Problem:** The credential contains standard base64 instead of base64url
 
 **Difference:**
+
 - **Base64:** Uses `+`, `/`, and `=`
 - **Base64url:** Uses `-`, `_`, and NO padding
 
@@ -113,6 +119,7 @@ Expected RP ID: localhost
 **Problem:** Credential is missing required fields
 
 **Required Fields:**
+
 - `id` (string)
 - `rawId` (base64url string)
 - `response.clientDataJSON` (base64url string)
@@ -120,13 +127,14 @@ Expected RP ID: localhost
 - `type` (must be "public-key")
 
 **Check:**
+
 ```javascript
-console.log('Credential validation:', {
+console.log("Credential validation:", {
   hasId: !!credential.id,
   hasRawId: !!credential.rawId,
   hasClientDataJSON: !!credential.response?.clientDataJSON,
   hasAttestationObject: !!credential.response?.attestationObject,
-  type: credential.type
+  type: credential.type,
 });
 ```
 
@@ -139,31 +147,35 @@ console.log('Credential validation:', {
 ```javascript
 // Frontend - Before sending to server
 const credentialForServer = {
-  id: credential.id,                          // ✓ String
-  rawId: uint8ArrayToBase64url(               // ✓ Base64url
-    new Uint8Array(credential.rawId)
+  id: credential.id, // ✓ String
+  rawId: uint8ArrayToBase64url(
+    // ✓ Base64url
+    new Uint8Array(credential.rawId),
   ),
   response: {
-    clientDataJSON: uint8ArrayToBase64url(    // ✓ Base64url
-      new Uint8Array(response.clientDataJSON)
+    clientDataJSON: uint8ArrayToBase64url(
+      // ✓ Base64url
+      new Uint8Array(response.clientDataJSON),
     ),
-    attestationObject: uint8ArrayToBase64url( // ✓ Base64url
-      new Uint8Array(response.attestationObject)
+    attestationObject: uint8ArrayToBase64url(
+      // ✓ Base64url
+      new Uint8Array(response.attestationObject),
     ),
-    transports: response.getTransports?.() || [] // ✓ Array of strings
+    transports: response.getTransports?.() || [], // ✓ Array of strings
   },
-  type: credential.type,                      // ✓ "public-key"
+  type: credential.type, // ✓ "public-key"
   clientExtensionResults: credential.getClientExtensionResults(), // ✓ Object
-  authenticatorAttachment: credential.authenticatorAttachment || undefined // ✓ String or undefined
+  authenticatorAttachment: credential.authenticatorAttachment || undefined, // ✓ String or undefined
 };
 
 // Verify the structure
-console.log('Credential ready to send:', {
-  id: credentialForServer.id.substring(0, 20) + '...',
+console.log("Credential ready to send:", {
+  id: credentialForServer.id.substring(0, 20) + "...",
   rawIdLength: credentialForServer.rawId.length,
   clientDataJSONLength: credentialForServer.response.clientDataJSON.length,
-  attestationObjectLength: credentialForServer.response.attestationObject.length,
-  type: credentialForServer.type
+  attestationObjectLength:
+    credentialForServer.response.attestationObject.length,
+  type: credentialForServer.type,
 });
 ```
 
@@ -233,11 +245,13 @@ Passkey credential saved successfully
 ### Issue: Using `ArrayBuffer` instead of `Uint8Array`
 
 ❌ **Wrong:**
+
 ```typescript
 const rawId = bufferToBase64url(credential.rawId); // ArrayBuffer
 ```
 
 ✅ **Correct:**
+
 ```typescript
 const rawId = uint8ArrayToBase64url(new Uint8Array(credential.rawId));
 ```
@@ -245,6 +259,7 @@ const rawId = uint8ArrayToBase64url(new Uint8Array(credential.rawId));
 ### Issue: Not converting response fields
 
 ❌ **Wrong:**
+
 ```typescript
 response: {
   clientDataJSON: response.clientDataJSON,  // Still ArrayBuffer!
@@ -253,6 +268,7 @@ response: {
 ```
 
 ✅ **Correct:**
+
 ```typescript
 response: {
   clientDataJSON: uint8ArrayToBase64url(new Uint8Array(response.clientDataJSON)),
@@ -283,7 +299,3 @@ If you're still getting the error, please provide:
 5. ✅ Operating system
 
 This will help diagnose the exact issue!
-
-
-
-

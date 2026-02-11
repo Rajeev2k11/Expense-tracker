@@ -1,9 +1,11 @@
 # Bootstrap Super Admin - Initial Setup Guide
 
 ## Problem
+
 To create an admin via the super admin endpoint, you need authentication (a JWT token). But to get a token, you need to be a user first. This creates a bootstrap problem.
 
 ## Solution
+
 A special **unprotected bootstrap endpoint** that allows creating the first super admin without authentication.
 
 ---
@@ -19,6 +21,7 @@ curl http://localhost:3000/api/v1/super-admin/bootstrap/check
 ```
 
 **Response:**
+
 ```json
 {
   "exists": false,
@@ -53,12 +56,14 @@ curl -X POST http://localhost:3000/api/v1/super-admin/bootstrap/create \
 #### Option B: With Secret Key (Recommended for Production)
 
 1. **Set environment variable:**
+
 ```bash
 # In your .env file
 BOOTSTRAP_SECRET_KEY=your-secret-bootstrap-key-here
 ```
 
 2. **Create super admin:**
+
 ```bash
 curl -X POST http://localhost:3000/api/v1/super-admin/bootstrap/create \
   -H "Content-Type: application/json" \
@@ -72,6 +77,7 @@ curl -X POST http://localhost:3000/api/v1/super-admin/bootstrap/create \
 ```
 
 **Response:**
+
 ```json
 {
   "message": "First super admin created successfully. Please setup MFA.",
@@ -132,6 +138,7 @@ curl -X POST http://localhost:3000/api/v1/users/login \
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Login successful",
@@ -172,7 +179,6 @@ curl -X POST http://localhost:3000/api/v1/super-admin/create-admin \
 - If `BOOTSTRAP_SECRET_KEY` is **NOT set** in environment:
   - Works only if no super admin exists
   - Once a super admin exists, this endpoint is blocked
-  
 - If `BOOTSTRAP_SECRET_KEY` **IS set**:
   - Always requires the secret key to work
   - Allows creating additional super admins if needed (with secret)
@@ -216,18 +222,18 @@ FRONTEND_APP_URL=http://localhost:5173
 ```
 1. Check if super admin exists
    GET /api/v1/super-admin/bootstrap/check
-   
+
 2. Create first super admin (no auth needed)
    POST /api/v1/super-admin/bootstrap/create
-   
+
 3. Setup MFA for super admin
    POST /api/v1/users/select-mfa-method
    POST /api/v1/users/verify-mfa-setup
-   
+
 4. Login as super admin
    POST /api/v1/users/login
    → Get JWT token
-   
+
 5. Use token to invite more admins
    POST /api/v1/super-admin/create-admin
    (with Authorization header)
@@ -302,4 +308,3 @@ or
 - ✅ **Once created**, use authenticated endpoints for other admins
 - ✅ **MFA required** before login
 - ✅ **Production ready** with proper security measures
-
