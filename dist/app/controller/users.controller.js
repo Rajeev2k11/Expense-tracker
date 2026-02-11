@@ -69,11 +69,9 @@ const loginUser = async (req, res) => {
 
     // Check if user has a password set
     if (!user.password) {
-      return res
-        .status(401)
-        .json({
-          message: "Password not set. Please setup your password first.",
-        });
+      return res.status(401).json({
+        message: "Password not set. Please setup your password first.",
+      });
     }
 
     // Compare password
@@ -230,8 +228,6 @@ const inviteUser = async (req, res) => {
         status: "pending",
       });
     }
-
-
 
     res.status(200).json({
       message: isResend
@@ -403,11 +399,9 @@ const verifyMfaSetup = async (req, res) => {
     }
 
     if (!user.mfa_method) {
-      return res
-        .status(400)
-        .json({
-          message: "MFA method not selected. Please select MFA method first.",
-        });
+      return res.status(400).json({
+        message: "MFA method not selected. Please select MFA method first.",
+      });
     }
 
     let verified = false;
@@ -445,22 +439,18 @@ const verifyMfaSetup = async (req, res) => {
       }
 
       if (!user.webauthn_challenge) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "No WebAuthn challenge found. Please restart the setup process.",
-          });
+        return res.status(400).json({
+          message:
+            "No WebAuthn challenge found. Please restart the setup process.",
+        });
       }
 
       // Validate WebAuthn configuration
       if (!origin || !rpID) {
         console.error("WebAuthn configuration error:", { origin, rpID });
-        return res
-          .status(500)
-          .json({
-            message: "WebAuthn is not properly configured on the server",
-          });
+        return res.status(500).json({
+          message: "WebAuthn is not properly configured on the server",
+        });
       }
 
       try {
@@ -838,7 +828,10 @@ const verifyLoginMfa = async (req, res) => {
               const dbBuffer = Buffer.from(cred.credentialID, "base64");
               return requestBuffer.equals(dbBuffer);
             } catch (error) {
-              console.error("Error comparing credential IDs as buffers:", error);
+              console.error(
+                "Error comparing credential IDs as buffers:",
+                error,
+              );
               return false;
             }
           });
@@ -1340,11 +1333,9 @@ const setUserDefaultTeam = async (req, res) => {
     }
 
     if (!isUserPartOfTeam(team, userId)) {
-      return res
-        .status(403)
-        .json({
-          message: "You must be a team member or leader to set it as default",
-        });
+      return res.status(403).json({
+        message: "You must be a team member or leader to set it as default",
+      });
     }
 
     user.default_team = team._id;
@@ -1396,11 +1387,9 @@ const setUserActiveTeam = async (req, res) => {
     }
 
     if (!isUserPartOfTeam(team, userId)) {
-      return res
-        .status(403)
-        .json({
-          message: "You must be a team member or leader to set it as active",
-        });
+      return res.status(403).json({
+        message: "You must be a team member or leader to set it as active",
+      });
     }
 
     user.active_team = team._id;

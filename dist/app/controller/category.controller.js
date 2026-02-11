@@ -48,12 +48,10 @@ const updateCategory = async (req, res) => {
       Existedcategory.description === description &&
       Existedcategory.color === color
     ) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Category name, description and color are same as existing category",
-        });
+      return res.status(400).json({
+        message:
+          "Category name, description and color are same as existing category",
+      });
     }
     const category = await Category.findByIdAndUpdate(
       req.params.id,

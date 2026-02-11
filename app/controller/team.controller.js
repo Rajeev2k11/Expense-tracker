@@ -408,11 +408,9 @@ const removeTeamMember = async (req, res) => {
       }
 
       if (memberId === leaderId) {
-        return res
-          .status(403)
-          .json({
-            message: "Team manager cannot remove themselves. Contact an admin.",
-          });
+        return res.status(403).json({
+          message: "Team manager cannot remove themselves. Contact an admin.",
+        });
       }
     }
 
@@ -542,12 +540,10 @@ const updateTeamMemberRole = async (req, res) => {
     });
   } catch (error) {
     console.error("Update team member role error:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Failed to update team member role",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Failed to update team member role",
+      error: error.message,
+    });
   }
 };
 

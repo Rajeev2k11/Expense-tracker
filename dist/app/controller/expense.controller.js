@@ -40,12 +40,10 @@ const getExpensesByCategory = async (req, res) => {
     const expenses = await Expense.find({ category: req.params.categoryId });
     res.status(200).json(expenses);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Failed to get expenses by category",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Failed to get expenses by category",
+      error: error.message,
+    });
   }
 };
 
@@ -54,12 +52,10 @@ const getExpensesByUser = async (req, res) => {
     const expenses = await Expense.find({ createdBy: req.params.userId });
     res.status(200).json(expenses);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Failed to get expenses by user",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Failed to get expenses by user",
+      error: error.message,
+    });
   }
 };
 
@@ -68,12 +64,10 @@ const getExpensesByTeam = async (req, res) => {
     const expenses = await Expense.find({ team: req.params.teamId });
     res.status(200).json(expenses);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Failed to get expenses by team",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Failed to get expenses by team",
+      error: error.message,
+    });
   }
 };
 const getAllExpenses = async (req, res) => {
