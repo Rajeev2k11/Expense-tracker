@@ -674,10 +674,15 @@ router.post('/select-mfa-method', selectMfaMethod);
  * @swagger
  * /api/v1/users/verify-mfa-setup:
  *   post:
- *     summary: Verify MFA setup (supports both TOTP and PASSKEY)
+ *     summary: Verify MFA setup during registration (supports both TOTP and PASSKEY)
  *     description: |
- *       Verifies the MFA setup by checking the TOTP code or passkey credential. 
- *       This endpoint is used during the MFA setup process after selecting the MFA method.
+ *       **REGISTRATION/SETUP ENDPOINT** - Verifies the MFA setup by checking the TOTP code or passkey credential. 
+ *       This endpoint is used during the initial MFA setup process after selecting the MFA method.
+ *       
+ *       **Use this endpoint for:**
+ *       - Initial MFA setup after password setup
+ *       - Admin registration MFA setup
+ *       - First-time MFA configuration
  *       
  *       **For TOTP Method**: 
  *       - Required fields: `challengeId` + `code` (6-digit number)
@@ -913,8 +918,25 @@ router.post('/verify-mfa-setup', verifyMfaSetup);
  * @swagger
  * /api/v1/users/verify-login-mfa:
  *   post:
- *     summary: Verify MFA for user login
- *     description: Verifies the TOTP code for user login after successful password verification. Used by normal users who have MFA enabled.
+ *     summary: Verify MFA for user login/authentication (supports both TOTP and PASSKEY)
+ *     description: |
+ *       **AUTHENTICATION/LOGIN ENDPOINT** - Verifies MFA for user login after successful password verification. 
+ *       Supports both TOTP and PASSKEY MFA methods.
+ *       
+ *       **Use this endpoint for:**
+ *       - Login authentication after password verification
+ *       - Daily login with MFA
+ *       - Re-authentication
+ *       
+ *       **For TOTP MFA:**
+ *       - Required: `challengeId` + `totpCode` (6-digit code from authenticator app)
+ *       - challengeId is received from login endpoint
+ *       
+ *       **For PASSKEY MFA:**
+ *       - Required: `challengeId` + `credential` (WebAuthn credential object from browser)
+ *       - challengeId is received from login endpoint
+ *       - passkeyOptions are included in login response
+ *       - The credential must be obtained using `navigator.credentials.get()` with passkeyOptions from login
  *     tags: [Users]
  *     security: []
  *     requestBody:
@@ -922,19 +944,86 @@ router.post('/verify-mfa-setup', verifyMfaSetup);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - challengeId
- *               - totpCode
- *             properties:
- *               challengeId:
- *                 type: string
- *                 description: Challenge ID received from login endpoint
- *                 example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
- *               totpCode:
- *                 type: string
- *                 description: 6-digit code from authenticator app
- *                 example: "123456"
+ *             oneOf:
+ *               - type: object
+ *                 title: TOTP Verification
+ *                 required:
+ *                   - challengeId
+ *                   - totpCode
+ *                 properties:
+ *                   challengeId:
+ *                     type: string
+ *                     description: Challenge ID received from login endpoint
+ *                     example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
+ *                   totpCode:
+ *                     type: string
+ *                     description: 6-digit code from authenticator app
+ *                     example: "123456"
+ *               - type: object
+ *                 title: PASSKEY Verification
+ *                 required:
+ *                   - challengeId
+ *                   - credential
+ *                 properties:
+ *                   challengeId:
+ *                     type: string
+ *                     description: Challenge ID received from login endpoint
+ *                     example: 51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a
+ *                   credential:
+ *                     type: object
+ *                     description: WebAuthn credential object from navigator.credentials.get()
+ *                     required:
+ *                       - id
+ *                       - rawId
+ *                       - response
+ *                       - type
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: Base64url encoded credential ID
+ *                       rawId:
+ *                         type: string
+ *                         description: Base64url encoded raw credential ID
+ *                       response:
+ *                         type: object
+ *                         required:
+ *                           - clientDataJSON
+ *                           - authenticatorData
+ *                           - signature
+ *                         properties:
+ *                           clientDataJSON:
+ *                             type: string
+ *                             description: Base64url encoded client data JSON
+ *                           authenticatorData:
+ *                             type: string
+ *                             description: Base64url encoded authenticator data
+ *                           signature:
+ *                             type: string
+ *                             description: Base64url encoded signature
+ *                           userHandle:
+ *                             type: string
+ *                             description: Base64url encoded user handle
+ *                       type:
+ *                         type: string
+ *                         enum: [public-key]
+ *           examples:
+ *             totpExample:
+ *               summary: TOTP Verification
+ *               value:
+ *                 challengeId: "51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a"
+ *                 totpCode: "123456"
+ *             passkeyExample:
+ *               summary: PASSKEY Verification
+ *               value:
+ *                 challengeId: "51d91f1ce3b8b60562b2f1c2da6a004f528da5fa8d09e04a"
+ *                 credential:
+ *                   id: "AQEBAgMFCA0VIjdZEGl5Yls"
+ *                   rawId: "AQEBAgMFCA0VIjdZEGl5Yls"
+ *                   response:
+ *                     clientDataJSON: "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoi..."
+ *                     authenticatorData: "..."
+ *                     signature: "..."
+ *                   type: "public-key"
  *     responses:
  *       200:
  *         description: Login successful
@@ -966,9 +1055,49 @@ router.post('/verify-mfa-setup', verifyMfaSetup);
  *                     mfa_method:
  *                       type: string
  *       400:
- *         description: Missing required fields
+ *         description: Missing required fields or invalid data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *               examples:
+ *                 missingChallengeId:
+ *                   value:
+ *                     message: Challenge ID is required
+ *                 missingTotpCode:
+ *                   value:
+ *                     message: TOTP code is required
+ *                 missingCredential:
+ *                   value:
+ *                     message: Passkey credential is required
+ *                 noChallenge:
+ *                   value:
+ *                     message: No authentication challenge found. Please generate passkey auth options first.
  *       401:
- *         description: Invalid challenge or TOTP code
+ *         description: Invalid challenge, TOTP code, or passkey authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *               examples:
+ *                 invalidChallenge:
+ *                   value:
+ *                     message: Invalid or expired challenge
+ *                 invalidTotp:
+ *                   value:
+ *                     message: Invalid TOTP code. Please try again.
+ *                 credentialNotFound:
+ *                   value:
+ *                     message: Credential not found
+ *                 passkeyFailed:
+ *                   value:
+ *                     message: Passkey authentication failed
  *       500:
  *         description: Failed to verify MFA
  */
