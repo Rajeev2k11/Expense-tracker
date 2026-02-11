@@ -82,6 +82,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ### Error Response Examples (400)
 
 **Missing Challenge ID:**
+
 ```json
 {
   "message": "Challenge ID is required"
@@ -89,6 +90,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ```
 
 **Missing TOTP Code:**
+
 ```json
 {
   "message": "TOTP code is required"
@@ -96,6 +98,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ```
 
 **Missing Passkey Credential:**
+
 ```json
 {
   "message": "Passkey credential is required"
@@ -103,6 +106,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ```
 
 **MFA Method Not Selected:**
+
 ```json
 {
   "message": "MFA method not selected. Please select MFA method first."
@@ -112,6 +116,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ### Error Response Examples (401)
 
 **Invalid Challenge:**
+
 ```json
 {
   "message": "Invalid or expired challenge"
@@ -119,6 +124,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ```
 
 **Invalid TOTP Code:**
+
 ```json
 {
   "message": "Invalid TOTP code. Please try again."
@@ -126,6 +132,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ```
 
 **Passkey Verification Failed:**
+
 ```json
 {
   "message": "Passkey verification failed"
@@ -175,6 +182,7 @@ Navigate to the **Users** tag and find the `POST /api/v1/users/verify-mfa-setup`
 ### Steps:
 
 1. **Open Swagger UI:**
+
    ```
    http://localhost:3000/api-docs
    ```
@@ -248,12 +256,12 @@ properties:
 
 ## HTTP Status Codes
 
-| Code | Meaning | When It Occurs |
-|------|---------|----------------|
-| 200 | Success | MFA verified and enabled |
-| 400 | Bad Request | Missing or invalid parameters |
-| 401 | Unauthorized | Invalid code/credential or expired challenge |
-| 500 | Server Error | Internal server error |
+| Code | Meaning      | When It Occurs                               |
+| ---- | ------------ | -------------------------------------------- |
+| 200  | Success      | MFA verified and enabled                     |
+| 400  | Bad Request  | Missing or invalid parameters                |
+| 401  | Unauthorized | Invalid code/credential or expired challenge |
+| 500  | Server Error | Internal server error                        |
 
 ---
 
@@ -294,9 +302,9 @@ interface VerificationResponse {
     email: string;
     name: string;
     username: string;
-    role: 'admin' | 'user' | 'manager';
+    role: "admin" | "user" | "manager";
     mfa_enabled: boolean;
-    mfa_method: 'TOTP' | 'PASSKEY';
+    mfa_method: "TOTP" | "PASSKEY";
   };
 }
 ```
@@ -321,4 +329,3 @@ interface VerificationResponse {
 ✅ **Ready for frontend integration**
 
 Access it now at: **http://localhost:3000/api-docs** 🎉
-

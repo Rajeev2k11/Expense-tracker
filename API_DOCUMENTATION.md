@@ -15,6 +15,7 @@ Created a new API endpoint `/api/v1/users/verify-mfa-setup` that handles MFA ver
 **Purpose:** Verifies MFA setup for both TOTP and PASSKEY methods
 
 **Request Body:**
+
 ```json
 {
   "challengeId": "string (required)",
@@ -24,6 +25,7 @@ Created a new API endpoint `/api/v1/users/verify-mfa-setup` that handles MFA ver
 ```
 
 **Response (Success - 200):**
+
 ```json
 {
   "message": "TOTP MFA verified and enabled successfully",
@@ -41,6 +43,7 @@ Created a new API endpoint `/api/v1/users/verify-mfa-setup` that handles MFA ver
 ```
 
 **Key Features:**
+
 - ✅ Validates challengeId and finds user
 - ✅ Handles TOTP verification using speakeasy
 - ✅ Handles PASSKEY verification using @simplewebauthn/server
@@ -68,39 +71,50 @@ Created a new API endpoint `/api/v1/users/verify-mfa-setup` that handles MFA ver
 
 ```typescript
 export const verifyMfaSetup = createAsyncThunk(
-  'mfaSetup/verifyMfaSetup',
+  "mfaSetup/verifyMfaSetup",
   async (
-    { challengeId, code, credential }: { 
-      challengeId: string; 
-      code?: string; 
-      credential?: any 
+    {
+      challengeId,
+      code,
+      credential,
+    }: {
+      challengeId: string;
+      code?: string;
+      credential?: any;
     },
-    { rejectWithValue }
+    { rejectWithValue },
   ) => {
     // Calls POST /api/v1/users/verify-mfa-setup
-  }
+  },
 );
 ```
 
 **Usage for TOTP:**
+
 ```typescript
-dispatch(verifyMfaSetup({
-  challengeId: "abc123...",
-  code: "123456"
-}));
+dispatch(
+  verifyMfaSetup({
+    challengeId: "abc123...",
+    code: "123456",
+  }),
+);
 ```
 
 **Usage for PASSKEY:**
+
 ```typescript
-dispatch(verifyMfaSetup({
-  challengeId: "abc123...",
-  credential: credentialObject
-}));
+dispatch(
+  verifyMfaSetup({
+    challengeId: "abc123...",
+    credential: credentialObject,
+  }),
+);
 ```
 
 ### 2. **Updated Passkey Component: `Passkey.tsx`**
 
 **Changes:**
+
 - ✅ Uses `verifyMfaSetup` instead of removed `verifyMfa`
 - ✅ Proper challengeId tracking
 - ✅ Complete WebAuthn flow
@@ -156,20 +170,21 @@ dispatch(verifyMfaSetup({
 
 ## API Endpoints Summary
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/users/setup-password` | POST | Setup password for invited user |
-| `/api/v1/users/select-mfa-method` | POST | Select TOTP or PASSKEY method |
-| `/api/v1/users/verify-mfa-setup` | POST | **NEW** - Verify MFA setup |
-| `/api/v1/users/verify-login-mfa` | POST | Verify TOTP during login |
-| `/api/v1/users/passkey-auth-options` | POST | Get passkey auth options for login |
-| `/api/v1/users/passkey-auth-verify` | POST | Verify passkey during login |
+| Endpoint                             | Method | Purpose                            |
+| ------------------------------------ | ------ | ---------------------------------- |
+| `/api/v1/users/setup-password`       | POST   | Setup password for invited user    |
+| `/api/v1/users/select-mfa-method`    | POST   | Select TOTP or PASSKEY method      |
+| `/api/v1/users/verify-mfa-setup`     | POST   | **NEW** - Verify MFA setup         |
+| `/api/v1/users/verify-login-mfa`     | POST   | Verify TOTP during login           |
+| `/api/v1/users/passkey-auth-options` | POST   | Get passkey auth options for login |
+| `/api/v1/users/passkey-auth-verify`  | POST   | Verify passkey during login        |
 
 ---
 
 ## Error Handling
 
 ### Backend Errors:
+
 - `400` - Missing required fields (challengeId, code, or credential)
 - `400` - Invalid MFA method
 - `400` - MFA method not selected
@@ -180,6 +195,7 @@ dispatch(verifyMfaSetup({
 - `500` - Server error
 
 ### Frontend Errors:
+
 - WebAuthn not supported
 - Platform authenticator not available
 - User cancelled passkey creation
@@ -192,6 +208,7 @@ dispatch(verifyMfaSetup({
 ## Testing Checklist
 
 ### TOTP Flow:
+
 - [ ] Select TOTP method
 - [ ] Receive QR code
 - [ ] Scan QR code with authenticator app
@@ -200,6 +217,7 @@ dispatch(verifyMfaSetup({
 - [ ] MFA enabled in database
 
 ### PASSKEY Flow:
+
 - [ ] Select PASSKEY method
 - [ ] Receive WebAuthn options
 - [ ] Create passkey with biometrics
@@ -208,6 +226,7 @@ dispatch(verifyMfaSetup({
 - [ ] Passkey stored in database
 
 ### Error Scenarios:
+
 - [ ] Invalid challengeId
 - [ ] Expired challenge
 - [ ] Invalid TOTP code
@@ -220,6 +239,7 @@ dispatch(verifyMfaSetup({
 ## Files Modified
 
 ### Backend:
+
 1. `app/controller/users.controller.js`
    - Added `verifyMfaSetup` function
    - Exported `verifyMfaSetup`
@@ -229,6 +249,7 @@ dispatch(verifyMfaSetup({
    - Added route with Swagger docs
 
 ### Frontend (Created):
+
 1. `mfaSetupSlice.ts` - Redux slice with `verifyMfaSetup` action
 2. `Passkey.tsx` - React component for passkey setup
 
@@ -243,4 +264,3 @@ dispatch(verifyMfaSetup({
 **New Endpoint:** `/api/v1/users/verify-mfa-setup`
 
 **Action Required:** Update frontend to use new endpoint name
-

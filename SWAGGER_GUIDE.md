@@ -7,6 +7,7 @@ Your Expense Tracker API now has complete interactive documentation powered by S
 ## 🚀 How to Access
 
 1. **Start your server:**
+
    ```bash
    npm run dev
    ```
@@ -68,18 +69,23 @@ For protected endpoints (marked with a lock icon 🔒):
 ## 🎨 Swagger Features
 
 ### 1. **Interactive Testing**
+
 Test all endpoints directly from your browser without using Postman or cURL.
 
 ### 2. **Schema Validation**
+
 See exactly what data structure is expected for each request.
 
 ### 3. **Response Examples**
+
 View real examples of what the API returns.
 
 ### 4. **Authentication Testing**
+
 Easily test protected endpoints with JWT authentication.
 
 ### 5. **Export Options**
+
 Download the API specification in JSON or YAML format.
 
 ## 📁 Files Created
@@ -95,6 +101,7 @@ Download the API specification in JSON or YAML format.
 ### Modify Swagger Configuration
 
 Edit `swagger.js` to customize:
+
 - API title and description
 - Server URLs
 - Contact information
@@ -108,6 +115,7 @@ Edit the JSDoc comments in route files (`app/routes/*.js`) to update endpoint do
 ## 📝 Example Workflow
 
 ### 1. Register a User
+
 ```
 POST /api/v1/users/register
 {
@@ -119,13 +127,17 @@ POST /api/v1/users/register
 ```
 
 ### 2. Copy the Token
+
 Response will include a JWT token.
 
 ### 3. Authorize
+
 Click "Authorize" and enter: `Bearer YOUR_TOKEN`
 
 ### 4. Use Protected Endpoints
+
 Now you can test endpoints like:
+
 - `GET /api/v1/users` - Get all users
 - `GET /api/v1/users/:id` - Get specific user
 
@@ -135,24 +147,25 @@ Now you can test endpoints like:
 ✅ **Always up-to-date** - Documentation updates with code  
 ✅ **Easy sharing** - Share URL with team members  
 ✅ **Better collaboration** - Frontend devs can see exact API structure  
-✅ **Professional** - Industry-standard documentation format  
+✅ **Professional** - Industry-standard documentation format
 
 ## 🌐 Production Deployment
 
 When deploying to production:
 
 1. Update the server URL in `swagger.js`:
+
    ```javascript
    servers: [
      {
-       url: 'https://api.yourproduction.com',
-       description: 'Production server'
+       url: "https://api.yourproduction.com",
+       description: "Production server",
      },
      {
-       url: 'http://localhost:3000',
-       description: 'Development server'
-     }
-   ]
+       url: "http://localhost:3000",
+       description: "Development server",
+     },
+   ];
    ```
 
 2. Consider adding authentication to the `/api-docs` route if needed.
@@ -167,4 +180,3 @@ When deploying to production:
 ---
 
 **Happy Testing! 🚀**
-
