@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/users.models');
 const Team = require('../models/team.model');
 const bcrypt = require('bcrypt');
@@ -908,6 +909,223 @@ const verifyPasskeyAuth = async (req, res) => {
     }
 }
 
+const getEntityId = (entity) => {
+    if (!entity) {
+        return null;
+    }
+
+    if (entity._id) {
+        return entity._id.toString();
+    }
+
+    if (typeof entity === 'string') {
+        return entity;
+    }
+
+    return entity.toString();
+};
+
+const mapTeamForResponse = (team) => ({
+    id: team._id,
+    name: team.name,
+    description: team.description,
+    team_leader: team.team_leader,
+    members: team.members,
+    monthly_budget: team.monthly_budget,
+    monthly_budget_remaining: team.monthly_budget_remaining
+});
+
+const isUserPartOfTeam = (team, userId) => {
+    if (!team) {
+        return false;
+    }
+
+    const leaderId = getEntityId(team.team_leader);
+    if (leaderId === userId) {
+        return true;
+    }
+
+    return Array.isArray(team.members) && team.members.some(member => {
+        const memberId = getEntityId(member);
+        return memberId === userId;
+    });
+};
+
+const getTeamsForUser = async (userId) => {
+    const teamsAsLeader = await Team.find({ team_leader: userId })
+        .populate('team_leader', 'name username email role')
+        .populate('members', 'name username email role');
+
+    const teamsAsMember = await Team.find({ members: userId })
+        .populate('team_leader', 'name username email role')
+        .populate('members', 'name username email role');
+
+    const teamMap = new Map();
+    const addTeam = (team) => {
+        const id = team._id.toString();
+        if (!teamMap.has(id)) {
+            teamMap.set(id, team);
+        }
+    };
+
+    teamsAsLeader.forEach(addTeam);
+    teamsAsMember.forEach(addTeam);
+
+    return {
+        teamsAsLeader,
+        teamsAsMember,
+        allTeams: Array.from(teamMap.values())
+    };
+};
+
+const getUserTeams = async (req, res) => {
+    try {
+        const userId = req.userId;
+
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const user = await User.findById(userId).select('default_team active_team');
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const { allTeams } = await getTeamsForUser(userId);
+
+        const defaultTeamId = user.default_team ? user.default_team.toString() : null;
+        const defaultTeam = defaultTeamId
+            ? allTeams.find(team => team._id.toString() === defaultTeamId)
+            : null;
+
+        const activeTeamId = user.active_team ? user.active_team.toString() : null;
+        const activeTeam = activeTeamId
+            ? allTeams.find(team => team._id.toString() === activeTeamId)
+            : null;
+
+        const resolvedActiveTeam = activeTeam || defaultTeam;
+
+        return res.status(200).json({
+            defaultTeamId,
+            defaultTeam: defaultTeam ? mapTeamForResponse(defaultTeam) : null,
+            activeTeamId,
+            activeTeam: resolvedActiveTeam ? mapTeamForResponse(resolvedActiveTeam) : null,
+            teams: allTeams.map(mapTeamForResponse)
+        });
+    } catch (error) {
+        console.error('Get user teams error:', error);
+        return res.status(500).json({
+            message: 'Failed to get user teams',
+            error: error.message
+        });
+    }
+};
+
+const setUserDefaultTeam = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { teamId } = req.body || {};
+
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        if (!teamId) {
+            return res.status(400).json({ message: 'Team ID is required' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(teamId)) {
+            return res.status(400).json({ message: 'Invalid team ID' });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const team = await Team.findById(teamId)
+            .populate('team_leader', 'name username email role')
+            .populate('members', 'name username email role');
+
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        if (!isUserPartOfTeam(team, userId)) {
+            return res.status(403).json({ message: 'You must be a team member or leader to set it as default' });
+        }
+
+        user.default_team = team._id;
+        await user.save();
+
+        return res.status(200).json({
+            message: 'Default team updated successfully',
+            defaultTeamId: user.default_team.toString(),
+            defaultTeam: mapTeamForResponse(team)
+        });
+    } catch (error) {
+        console.error('Set user default team error:', error);
+        return res.status(500).json({
+            message: 'Failed to set default team',
+            error: error.message
+        });
+    }
+};
+
+const setUserActiveTeam = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { teamId } = req.body || {};
+
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        if (!teamId) {
+            return res.status(400).json({ message: 'Team ID is required' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(teamId)) {
+            return res.status(400).json({ message: 'Invalid team ID' });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const team = await Team.findById(teamId)
+            .populate('team_leader', 'name username email role')
+            .populate('members', 'name username email role');
+
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        if (!isUserPartOfTeam(team, userId)) {
+            return res.status(403).json({ message: 'You must be a team member or leader to set it as active' });
+        }
+
+        user.active_team = team._id;
+        await user.save();
+
+        return res.status(200).json({
+            message: 'Active team updated successfully',
+            activeTeamId: user.active_team.toString(),
+            activeTeam: mapTeamForResponse(team)
+        });
+    } catch (error) {
+        console.error('Set user active team error:', error);
+        return res.status(500).json({
+            message: 'Failed to set active team',
+            error: error.message
+        });
+    }
+};
+
 // Get current user profile with teams and role
 const getCurrentUserProfile = async (req, res) => {
     try {
@@ -924,47 +1142,48 @@ const getCurrentUserProfile = async (req, res) => {
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
+
+        const { teamsAsLeader, teamsAsMember, allTeams } = await getTeamsForUser(userId);
         
-        // Find teams where user is team leader
-        const teamsAsLeader = await Team.find({ team_leader: userId })
-            .populate('team_leader', 'name username email role')
-            .populate('members', 'name username email role');
-        
-        // Find teams where user is a member
-        const teamsAsMember = await Team.find({ members: userId })
-            .populate('team_leader', 'name username email role')
-            .populate('members', 'name username email role');
-        
-        // Combine all teams (avoid duplicates)
-        const allTeams = [];
-        const teamIds = new Set();
-        
-        // Add teams where user is leader
-        teamsAsLeader.forEach(team => {
-            if (!teamIds.has(team._id.toString())) {
-                teamIds.add(team._id.toString());
-                allTeams.push(team);
+        const defaultTeamId = user.default_team ? user.default_team.toString() : null;
+        let defaultTeam = defaultTeamId
+            ? allTeams.find(team => team._id.toString() === defaultTeamId)
+            : null;
+
+        const activeTeamId = user.active_team ? user.active_team.toString() : null;
+        let activeTeam = activeTeamId
+            ? allTeams.find(team => team._id.toString() === activeTeamId)
+            : null;
+
+        let shouldPersistUserUpdate = false;
+
+        if (defaultTeamId && !defaultTeam) {
+            user.default_team = null;
+            shouldPersistUserUpdate = true;
+        }
+
+        if (activeTeamId && !activeTeam) {
+            user.active_team = null;
+            shouldPersistUserUpdate = true;
+        }
+
+        if (!defaultTeam) {
+            if (teamsAsLeader.length > 0) {
+                defaultTeam = teamsAsLeader[0];
+            } else if (teamsAsMember.length > 0) {
+                defaultTeam = teamsAsMember[0];
             }
-        });
-        
-        // Add teams where user is member
-        teamsAsMember.forEach(team => {
-            if (!teamIds.has(team._id.toString())) {
-                teamIds.add(team._id.toString());
-                allTeams.push(team);
-            }
-        });
-        
-        // Default team: First team where user is leader, or first team where user is member
-        let defaultTeam = null;
-        if (teamsAsLeader.length > 0) {
-            defaultTeam = teamsAsLeader[0];
-        } else if (teamsAsMember.length > 0) {
-            defaultTeam = teamsAsMember[0];
+        }
+
+        if (!activeTeam) {
+            activeTeam = defaultTeam;
+        }
+
+        if (shouldPersistUserUpdate) {
+            await user.save({ validateBeforeSave: false });
         }
         
-        // Active team: For now, same as default team (can be enhanced later to store user preference)
-        const activeTeam = defaultTeam;
+        // Active team: Uses persisted active team when available, otherwise falls back to default team
         
         // Format response
         const response = {
@@ -995,15 +1214,7 @@ const getCurrentUserProfile = async (req, res) => {
                 monthly_budget: activeTeam.monthly_budget,
                 monthly_budget_remaining: activeTeam.monthly_budget_remaining
             } : null,
-            allTeams: allTeams.map(team => ({
-                id: team._id,
-                name: team.name,
-                description: team.description,
-                team_leader: team.team_leader,
-                members: team.members,
-                monthly_budget: team.monthly_budget,
-                monthly_budget_remaining: team.monthly_budget_remaining
-            }))
+            allTeams: allTeams.map(mapTeamForResponse)
         };
         
         res.status(200).json(response);
@@ -1028,5 +1239,8 @@ module.exports = {
     generatePasskeyAuthOptions,
     verifyPasskeyAuth,
     signUpAdmin,
+    getUserTeams,
+    setUserDefaultTeam,
+    setUserActiveTeam,
     getCurrentUserProfile
 }

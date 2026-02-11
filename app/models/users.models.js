@@ -86,6 +86,16 @@ const userSchema = new mongoose.Schema({
         type:String,
         enum:['MANAGER', 'MEMBER'],
         default:'MEMBER'
+    },
+    default_team:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team',
+        default: null
+    },
+    active_team:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Team',
+        default: null
     }
 
     
