@@ -13,7 +13,11 @@ const {
     verifyLoginMfa,
     generatePasskeyAuthOptions,
     verifyPasskeyAuth,
-    signUpAdmin
+    signUpAdmin,
+    getUserTeams,
+    setUserDefaultTeam,
+    setUserActiveTeam,
+    getCurrentUserProfile
 } = require('../controller/users.controller');
 const authMiddleware = require('../middleware/auth.middleware');
 
@@ -111,6 +115,380 @@ router.post('/login', loginUser);
  *         description: Failed to get users
  */
 router.get('/', authMiddleware, getAllUsers);
+
+/**
+ * @swagger
+ * /api/v1/users/readUserProfile:
+ *   get:
+ *     summary: Get current user profile with teams and role
+ *     description: |
+ *       Returns the currently authenticated user's profile information including:
+ *       - User details (id, name, username, email, role, status, member_type)
+ *       - Default team (first team where user is leader, or first team where user is member)
+ *       - Active team (configurable via the switch-team endpoint)
+ *       - All teams the user is associated with (as leader or member)
+ *       
+ *       This endpoint should be called after login to get user context.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [ADMIN, USER, SUPER_ADMIN]
+ *                       example: ADMIN
+ *                     status:
+ *                       type: string
+ *                       enum: [active, inactive, pending]
+ *                       example: active
+ *                     member_type:
+ *                       type: string
+ *                       enum: [MANAGER, MEMBER]
+ *                       example: MEMBER
+ *                 defaultTeam:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     team_leader:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         username:
+ *                           type: string
+ *                         email:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                     members:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     monthly_budget:
+ *                       type: number
+ *                     monthly_budget_remaining:
+ *                       type: number
+ *                 activeTeam:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     team_leader:
+ *                       type: object
+ *                     members:
+ *                       type: array
+ *                     monthly_budget:
+ *                       type: number
+ *                     monthly_budget_remaining:
+ *                       type: number
+ *                 allTeams:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *             examples:
+ *               withTeams:
+ *                 summary: User with teams
+ *                 value:
+ *                   user:
+ *                     id: "673abc123def456789012345"
+ *                     name: "John Doe"
+ *                     username: "johndoe"
+ *                     email: "john@example.com"
+ *                     role: "ADMIN"
+ *                     status: "active"
+ *                     member_type: "MEMBER"
+ *                   defaultTeam:
+ *                     id: "673def456abc789012345678"
+ *                     name: "Development Team"
+ *                     description: "Main development team"
+ *                     team_leader:
+ *                       _id: "673abc123def456789012345"
+ *                       name: "John Doe"
+ *                       username: "johndoe"
+ *                       email: "john@example.com"
+ *                       role: "ADMIN"
+ *                     members: []
+ *                     monthly_budget: 10000
+ *                     monthly_budget_remaining: 7500
+ *                   activeTeam:
+ *                     id: "673def456abc789012345678"
+ *                     name: "Development Team"
+ *                     description: "Main development team"
+ *                     team_leader:
+ *                       _id: "673abc123def456789012345"
+ *                       name: "John Doe"
+ *                       username: "johndoe"
+ *                       email: "john@example.com"
+ *                       role: "ADMIN"
+ *                     members: []
+ *                     monthly_budget: 10000
+ *                     monthly_budget_remaining: 7500
+ *                   allTeams:
+ *                     - id: "673def456abc789012345678"
+ *                       name: "Development Team"
+ *               withoutTeams:
+ *                 summary: User without teams
+ *                 value:
+ *                   user:
+ *                     id: "673abc123def456789012345"
+ *                     name: "John Doe"
+ *                     username: "johndoe"
+ *                     email: "john@example.com"
+ *                     role: "USER"
+ *                     status: "active"
+ *                     member_type: "MEMBER"
+ *                   defaultTeam: null
+ *                   activeTeam: null
+ *                   allTeams: []
+ *       401:
+ *         description: Unauthorized - authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Failed to get user profile
+ */
+router.get('/readUserProfile', authMiddleware, getCurrentUserProfile);
+
+/**
+ * @swagger
+ * /api/v1/users/teams:
+ *   get:
+ *     summary: Get teams for current user
+ *     description: Returns all teams where the authenticated user is a team leader or a member.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Teams retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 defaultTeamId:
+ *                   type: string
+ *                   nullable: true
+ *                   description: ID of the user's default team, if set
+ *                 defaultTeam:
+ *                   type: object
+ *                   nullable: true
+ *                   description: Detailed information for the default team when available
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     team_leader:
+ *                       type: object
+ *                       description: Team leader details
+ *                     members:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         description: Team member details
+ *                     monthly_budget:
+ *                       type: number
+ *                     monthly_budget_remaining:
+ *                       type: number
+ *                 activeTeamId:
+ *                   type: string
+ *                   nullable: true
+ *                   description: ID of the user's active team, if set
+ *                 activeTeam:
+ *                   type: object
+ *                   nullable: true
+ *                   description: Detailed information for the active team when available
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     team_leader:
+ *                       type: object
+ *                     members:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     monthly_budget:
+ *                       type: number
+ *                     monthly_budget_remaining:
+ *                       type: number
+ *                 teams:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: Team identifier
+ *                       name:
+ *                         type: string
+ *                         description: Team name
+ *                       description:
+ *                         type: string
+ *                         description: Team description
+ *                       team_leader:
+ *                         $ref: '#/components/schemas/User'
+ *                       members:
+ *                         type: array
+ *                         items:
+ *                           $ref: '#/components/schemas/User'
+ *                       monthly_budget:
+ *                         type: number
+ *                         description: Monthly budget allocated to the team
+ *                       monthly_budget_remaining:
+ *                         type: number
+ *                         description: Remaining monthly budget for the team
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Failed to get user teams
+ */
+router.get('/teams', authMiddleware, getUserTeams);
+
+/**
+ * @swagger
+ * /api/v1/users/teams/default:
+ *   patch:
+ *     summary: Set default team for current user
+ *     description: Updates the default team for the authenticated user. The user must belong to the team as a leader or member.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *                 description: ID of the team to set as default
+ *     responses:
+ *       200:
+ *         description: Default team updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 defaultTeamId:
+ *                   type: string
+ *                   description: Newly set default team ID
+ *                 defaultTeam:
+ *                   type: object
+ *                   description: Details of the default team
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: User is not part of the specified team
+ *       404:
+ *         description: User or team not found
+ *       500:
+ *         description: Failed to set default team
+ */
+router.patch('/teams/default', authMiddleware, setUserDefaultTeam);
+
+/**
+ * @swagger
+ * /api/v1/users/switch-team:
+ *   patch:
+ *     summary: Switch active team for current user
+ *     description: Switches the authenticated user's active team. The user must belong to the specified team.
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - teamId
+ *             properties:
+ *               teamId:
+ *                 type: string
+ *                 description: ID of the team to switch to
+ *     responses:
+ *       200:
+ *         description: Active team switched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 activeTeamId:
+ *                   type: string
+ *                   description: Newly set active team ID
+ *                 activeTeam:
+ *                   type: object
+ *                   description: Details of the active team
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: User is not part of the specified team
+ *       404:
+ *         description: User or team not found
+ *       500:
+ *         description: Failed to switch active team
+ */
+router.patch('/switch-team', authMiddleware, setUserActiveTeam);
 
 /**
  * @swagger
