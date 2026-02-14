@@ -26,7 +26,8 @@ const expenseSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -39,7 +40,16 @@ const expenseSchema = new mongoose.Schema(
       default: "pending",
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform(doc, ret) {
+        ret.created_at = ret.createdAt;
+        return ret;
+      },
+    },
+  },
 );
 
 const Expense = mongoose.model("Expense", expenseSchema);

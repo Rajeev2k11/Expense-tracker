@@ -3,12 +3,13 @@ const router = express.Router();
 const {
   createExpense,
   getExpenseById,
+  listExpenses,
   getExpensesByCategory,
   getExpensesByUser,
   getExpensesByTeam,
-  getAllExpenses,
   updateExpense,
   deleteExpense,
+  approveOrRejectExpense,
 } = require("../controller/expense.controller");
 /**
  * @swagger
@@ -71,13 +72,25 @@ router.post("/", createExpense);
  * @swagger
  * /api/v1/expenses:
  *   get:
- *     summary: Get all expenses
+ *     summary: List expenses (current user's teams or created by user)
  *     tags: [Expenses]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by title or description
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, approved, rejected]
+ *         description: Filter by status
  *     responses:
  *       200:
- *         description: List of all expenses
+ *         description: List of expenses with category and created_at
  *         content:
  *           application/json:
  *             schema:
@@ -92,38 +105,21 @@ router.post("/", createExpense);
  *                   amount:
  *                     type: number
  *                   category:
- *                     type: string
+ *                     type: object
  *                   description:
  *                     type: string
  *                   date:
  *                     type: string
+ *                   status:
+ *                     type: string
+ *                     enum: [pending, approved, rejected]
+ *                   created_at:
+ *                     type: string
+ *                     format: date-time
  *       500:
- *         description: Failed to get expenses
+ *         description: Failed to list expenses
  */
-router.get("/", getAllExpenses);
-
-/**
- * @swagger
- * /api/v1/expenses/{id}:
- *   get:
- *     summary: Get expense by ID
- *     tags: [Expenses]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Expense ID
- *     responses:
- *       200:
- *         description: Expense details
- *       500:
- *         description: Failed to get expense
- */
-router.get("/:id", getExpenseById);
+router.get("/", listExpenses);
 
 /**
  * @swagger
@@ -197,8 +193,73 @@ router.get("/team/:teamId", getExpensesByTeam);
 /**
  * @swagger
  * /api/v1/expenses/{id}:
+ *   get:
+ *     summary: Get expense by ID
+ *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Expense ID
+ *     responses:
+ *       200:
+ *         description: Expense details with created_at
+ *       404:
+ *         description: Expense not found
+ *       500:
+ *         description: Failed to get expense
+ */
+router.get("/:id", getExpenseById);
+
+/**
+ * @swagger
+ * /api/v1/expenses/{id}/approval:
+ *   patch:
+ *     summary: Approve or reject expense (team manager only)
+ *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Expense ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [approved, rejected]
+ *                 description: New approval status
+ *     responses:
+ *       200:
+ *         description: Expense approved or rejected successfully
+ *       403:
+ *         description: Only team manager can approve/reject
+ *       404:
+ *         description: Expense not found
+ *       500:
+ *         description: Failed to update status
+ */
+router.patch("/:id/approval", approveOrRejectExpense);
+
+/**
+ * @swagger
+ * /api/v1/expenses/{id}:
  *   put:
- *     summary: Update expense
+ *     summary: Update expense (creator or team manager only)
  *     tags: [Expenses]
  *     security:
  *       - bearerAuth: []
@@ -230,6 +291,10 @@ router.get("/team/:teamId", getExpensesByTeam);
  *     responses:
  *       200:
  *         description: Expense updated successfully
+ *       403:
+ *         description: Only creator or team manager can edit
+ *       404:
+ *         description: Expense not found
  *       500:
  *         description: Failed to update expense
  */
@@ -239,7 +304,7 @@ router.put("/:id", updateExpense);
  * @swagger
  * /api/v1/expenses/{id}:
  *   delete:
- *     summary: Delete expense
+ *     summary: Delete expense (creator or team manager only)
  *     tags: [Expenses]
  *     security:
  *       - bearerAuth: []
@@ -253,6 +318,10 @@ router.put("/:id", updateExpense);
  *     responses:
  *       200:
  *         description: Expense deleted successfully
+ *       403:
+ *         description: Only creator or team manager can delete
+ *       404:
+ *         description: Expense not found
  *       500:
  *         description: Failed to delete expense
  */
